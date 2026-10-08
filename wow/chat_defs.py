@@ -89,6 +89,29 @@ class Language:
     ADDON = 0xFFFFFFFF
 
 
+# Player race ids (SharedDefines.h) grouped per RACEMASK_ALLIANCE; the rest
+# of the playable races are Horde (RACEMASK_HORDE = ALL_PLAYABLE & ~ALLIANCE).
+ALLIANCE_RACES = frozenset({1, 3, 4, 7, 11})  # Human, Dwarf, NElf, Gnome, Draenei
+HORDE_RACES = frozenset({2, 5, 6, 8, 10})     # Orc, Undead, Tauren, Troll, Belf
+
+
+def faction_of_race(race: int) -> str:
+    """'alliance' | 'horde' | 'unknown' (mirrors RACEMASK_ALLIANCE)."""
+    if race in ALLIANCE_RACES:
+        return "alliance"
+    if race in HORDE_RACES:
+        return "horde"
+    return "unknown"
+
+
+def default_language_for_race(race: int) -> int:
+    """Faction tongue a character can always speak: Common (7) for
+    Alliance, Orcish (1) for Horde. Unknown races fall back to Common."""
+    if faction_of_race(race) == "horde":
+        return Language.ORCISH
+    return Language.COMMON
+
+
 class ChannelNotify(IntEnum):
     JOINED = 0x00
     LEFT = 0x01

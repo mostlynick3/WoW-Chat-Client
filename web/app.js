@@ -1,5 +1,5 @@
 "use strict";
-let sinceId = 0, online = false, pollTimer = null;
+let sinceId = 0, online = false, pollTimer = null, langTouched = false;
 
 const $ = (id) => document.getElementById(id);
 const feed = $("feed"), dot = $("dot"), connText = $("connText");
@@ -33,7 +33,13 @@ async function refreshStatus() {
     dot.className = online ? "on" : (s.state === "offline" ? "" : "busy");
     connText.textContent = `${s.state} — ${s.status || ""}`;
     $("chatCard").classList.toggle("hidden", false);
-    if (online) $("whoami").textContent = `— ${s.character} @ ${s.realm}`;
+    if (online) {
+      $("whoami").textContent = `— ${s.character} @ ${s.realm}` +
+        (s.faction ? ` (${s.faction})` : "");
+      // Keep the language selector on the faction tongue unless the
+      // user deliberately changed it after login.
+      if (s.language !== undefined && !langTouched) $("lang").value = String(s.language);
+    }
   } catch { /* backend starting */ }
 }
 async function poll() {
@@ -62,11 +68,16 @@ $("btnLogin").onclick = async () => {
   $("password").value = "";  // don't keep password in the DOM
   const r = await api("/api/login", body);
   $("loginMsg").textContent = r.ok ? `online as ${r.character}` : `FAILED: ${r.error}`;
-  if (r.ok) note(`Logged in as ${r.character}.`, "system");
+  if (r.ok) {
+    // Faction tongue: Common (7) for Alliance, Orcish (1) for Horde.
+    if (r.language !== undefined) $("lang").value = String(r.language);
+    note(`Logged in as ${r.character}${r.faction ? ` (${r.faction})` : ""}.`, "system");
+  }
   refreshStatus();
 };
 $("btnLogout").onclick = async () => {
   await api("/api/logout");
+  langTouched = false;
   note("Logged out.", "system");
   refreshStatus();
 };
@@ -109,6 +120,7 @@ $("btnChanList").onclick = async () => {
 $("btnWho").onclick = async () => {
   await api("/api/who", { name_sub: $("whoName").value.trim() });
 };
+$("lang").addEventListener("change", () => { langTouched = true; });
 
 refreshStatus();
 setInterval(refreshStatus, 3000);

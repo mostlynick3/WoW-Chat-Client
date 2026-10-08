@@ -10,6 +10,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from wow import crypt as crypt_mod
 from wow import protocol as P
 from wow import srp
+from wow.chat_defs import (
+    Language,
+    default_language_for_race,
+    faction_of_race,
+)
 from wow.opcodes import Opcode
 from wow.world_socket import (
     build_auth_session,
@@ -65,6 +70,22 @@ class TestSRP(unittest.TestCase):
         m1, m2 = srp.client_proof("TESTUSER", salt, A, B, K)
         self.assertEqual(len(m1), 20)
         self.assertEqual(len(m2), 20)
+
+
+class TestFactionLanguage(unittest.TestCase):
+    def test_alliance_defaults_common(self):
+        for race in (1, 3, 4, 7, 11):  # Human, Dwarf, NElf, Gnome, Draenei
+            self.assertEqual(faction_of_race(race), "alliance")
+            self.assertEqual(default_language_for_race(race), Language.COMMON)
+
+    def test_horde_defaults_orcish(self):
+        for race in (2, 5, 6, 8, 10):  # Orc, Undead, Tauren, Troll, Belf
+            self.assertEqual(faction_of_race(race), "horde")
+            self.assertEqual(default_language_for_race(race), Language.ORCISH)
+
+    def test_unknown_race_safe_fallback(self):
+        self.assertEqual(faction_of_race(0), "unknown")
+        self.assertEqual(default_language_for_race(0), Language.COMMON)
 
 
 class TestPackets(unittest.TestCase):

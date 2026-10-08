@@ -15,7 +15,7 @@ import threading
 import time
 
 from wow.auth_socket import AuthClient
-from wow.chat_defs import SENDABLE
+from wow.chat_defs import SENDABLE, default_language_for_race, faction_of_race
 from wow.world_socket import ChatLine, WorldClient
 
 
@@ -27,6 +27,8 @@ class WoWChatManager:
         self.account = ""
         self.realm_name = ""
         self.character = ""
+        self.faction = ""
+        self.language = 7  # faction tongue; set on login from char race
         self.auth: AuthClient | None = None
         self.world: WorldClient | None = None
         self.history: list[dict] = []
@@ -64,7 +66,8 @@ class WoWChatManager:
             return {
                 "state": self.state, "status": self.status,
                 "account": self.account, "realm": self.realm_name,
-                "character": self.character,
+                "character": self.character, "faction": self.faction,
+                "language": self.language,
             }
 
     # -- lifecycle ----------------------------------------------------
@@ -105,7 +108,8 @@ class WoWChatManager:
             world.connect(host, port)
             world.login(username.upper(), auth.session_key, target.id)
             self.world = world
-            chars = [{"guid": c.guid, "name": c.name, "level": c.level}
+            chars = [{"guid": c.guid, "name": c.name, "level": c.level,
+                        "race": c.race, "class": c.cls}
                      for c in world.characters]
             if not chars:
                 raise ConnectionError("no characters on this realm/account")
@@ -119,6 +123,8 @@ class WoWChatManager:
             self.status = f"entering world as {entry['name']} ..."
             world.player_login(entry["guid"])
             self.character = entry["name"]
+            self.faction = faction_of_race(entry.get("race", 0))
+            self.language = default_language_for_race(entry.get("race", 0))
             self.state = "online"
             self.status = f"online as {self.character}"
             self._note(f"Logged in as {self.character} on {self.realm_name}. "
@@ -133,6 +139,7 @@ class WoWChatManager:
             self._drain_thread.start()
             return {"ok": True, "character": self.character,
                     "realm": self.realm_name,
+                    "faction": self.faction, "language": self.language,
                     "characters": [c["name"] for c in chars]}
         except Exception as exc:
             self.status = f"error: {exc}"
@@ -189,9 +196,11 @@ class WoWChatManager:
 
     # -- actions ------------------------------------------------------
     def send(self, kind: str, text: str, target: str = "",
-             channel: str = "", lang: int = 7) -> dict:
+             channel: str = "", lang: int | None = None) -> dict:
         if self.state != "online" or not self.world:
             return {"ok": False, "error": "not online"}
+        if lang is None:
+            lang = self.language
         ctype = int(SENDABLE.get(kind, SENDABLE["say"]))
         try:
             self.world.send_chat(ctype, int(lang), text, target=target,
@@ -269,6 +278,8 @@ class WoWChatManager:
             self.status = "disconnected"
         self.state = "offline"
         self.character = ""
+        self.faction = ""
+        self.language = 7
 
     def _cleanup_nets(self):
         try:
