@@ -1,5 +1,5 @@
 "use strict";
-let sinceId = 0, online = false, pollTimer = null, langTouched = false;
+let sinceId = 0, online = false, pollTimer = null;
 
 const $ = (id) => document.getElementById(id);
 const feed = $("feed"), dot = $("dot"), connText = $("connText");
@@ -35,10 +35,8 @@ async function refreshStatus() {
     $("chatCard").classList.toggle("hidden", false);
     if (online) {
       $("whoami").textContent = `— ${s.character} @ ${s.realm}` +
-        (s.faction ? ` (${s.faction})` : "");
-      // Keep the language selector on the faction tongue unless the
-      // user deliberately changed it after login.
-      if (s.language !== undefined && !langTouched) $("lang").value = String(s.language);
+        (s.faction ? ` (${s.faction})` : "") +
+        (s.universal && s.universal !== "unknown" ? ` [universal: ${s.universal}]` : "");
     }
   } catch { /* backend starting */ }
 }
@@ -69,15 +67,14 @@ $("btnLogin").onclick = async () => {
   const r = await api("/api/login", body);
   $("loginMsg").textContent = r.ok ? `online as ${r.character}` : `FAILED: ${r.error}`;
   if (r.ok) {
-    // Faction tongue: Common (7) for Alliance, Orcish (1) for Horde.
-    if (r.language !== undefined) $("lang").value = String(r.language);
+    // Leave the language selector on Auto (Universal → faction fallback);
+    // the faction tongue from login is the fallback, shown in the header.
     note(`Logged in as ${r.character}${r.faction ? ` (${r.faction})` : ""}.`, "system");
   }
   refreshStatus();
 };
 $("btnLogout").onclick = async () => {
   await api("/api/logout");
-  langTouched = false;
   note("Logged out.", "system");
   refreshStatus();
 };
@@ -92,11 +89,12 @@ async function send() {
     return;
   }
   const kind = $("kind").value;
+  const lv = $("lang").value;
   const r = await api("/api/send", {
     kind, text,
     target: kind === "whisper" ? $("target").value.trim() : "",
     channel: kind === "channel" ? ($("target").value.trim() || "World") : "",
-    lang: +$("lang").value || 7,
+    lang: lv === "auto" ? "auto" : +lv,
   });
   if (!r.ok) note("send failed: " + r.error, "system");
   $("text").value = "";
@@ -120,7 +118,6 @@ $("btnChanList").onclick = async () => {
 $("btnWho").onclick = async () => {
   await api("/api/who", { name_sub: $("whoName").value.trim() });
 };
-$("lang").addEventListener("change", () => { langTouched = true; });
 
 refreshStatus();
 setInterval(refreshStatus, 3000);

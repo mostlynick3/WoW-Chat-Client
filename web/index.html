@@ -52,10 +52,11 @@
         <option value="channel" selected>Channel</option>
       </select>
       <input id="target" placeholder="whisper to / channel name" value="World">
-      <select id="lang" title="Faction tongue auto-selected on login (Common for Alliance, Orcish for Horde). Universal only works for GMs / two-side servers.">
-        <option value="7" selected>Common (7)</option>
+      <select id="lang" title="Auto tries Universal first and falls back to your faction tongue if the server rejects it (SMSG_NOTIFICATION). Force options skip the fallback.">
+        <option value="auto" selected>Auto: Universal → faction</option>
+        <option value="7">Common (7)</option>
         <option value="1">Orcish (1)</option>
-        <option value="0">Universal (0, GM only)</option>
+        <option value="0">Universal (0, force)</option>
       </select>
       <input id="text" placeholder="message…  (Enter to send, /join X to join channel)" size="40">
       <button id="btnSend">Send</button>

@@ -248,6 +248,13 @@ class WorldClient:
             self.events.put({"t": "channel_list",
                              "detail": parse_channel_list(payload)})
             return
+        if opcode == int(Opcode.SMSG_NOTIFICATION):
+            text = parse_notification(payload)
+            self.events.put({"t": "notification", "text": text})
+            self.inbox.put(ChatLine(ts=time.time(), opcode=opcode, ctype=-1,
+                                    kind="system", sender="", channel="",
+                                    text=text))
+            return
         if opcode == int(Opcode.SMSG_WHO):
             self.events.put({"t": "who", "detail": parse_who(payload)})
             return
@@ -547,6 +554,14 @@ def parse_channel_notify(payload: bytes) -> dict:
     except Exception as exc:
         return {"notify": "UNKNOWN", "channel": "", "names": [],
                 "text": f"(unparsed notify: {exc})"}
+
+
+def parse_notification(payload: bytes) -> str:
+    # ChatHandler::SendNotification: one null-terminated string per packet.
+    try:
+        return Reader(payload).cstr()
+    except ValueError:
+        return bytes(payload).split(b"\x00")[0].decode("utf-8", "replace")
 
 
 def parse_channel_list(payload: bytes) -> dict:

@@ -15,8 +15,21 @@ import threading
 import time
 
 from wow.auth_socket import AuthClient
-from wow.chat_defs import SENDABLE, default_language_for_race, faction_of_race
+from wow.chat_defs import (
+    SENDABLE,
+    default_language_for_race,
+    faction_of_race,
+    language_name,
+)
 from wow.world_socket import ChatLine, WorldClient
+
+# Universal-first probe tuning. The core answers a rejected Universal send
+# with SMSG_NOTIFICATION "Unknown language" (acore_string 805) instead of
+# broadcasting, so a short window is enough to detect rejection. Chat has
+# no delivery ack, so silence within the window means "accepted".
+PROBE_WINDOW = 4.0   # assume accepted if no rejection arrives within this
+PROBE_GRACE = 10.0   # still honour late rejections for in-flight probes
+LANG_REJECT_HINT = "language"  # lenient: matches localized/custom strings too
 
 
 class WoWChatManager:
@@ -29,6 +42,11 @@ class WoWChatManager:
         self.character = ""
         self.faction = ""
         self.language = 7  # faction tongue; set on login from char race
+        # Universal verdict cache (per session): None=unknown, True=accepted,
+        # False=rejected (fall back to faction tongue without probing).
+        self.universal_verdict: bool | None = None
+        self._probes: list[dict] = []  # in-flight universal sends
+        self._accept_noted = False
         self.auth: AuthClient | None = None
         self.world: WorldClient | None = None
         self.history: list[dict] = []
@@ -68,6 +86,8 @@ class WoWChatManager:
                 "account": self.account, "realm": self.realm_name,
                 "character": self.character, "faction": self.faction,
                 "language": self.language,
+                "universal": ("unknown" if self.universal_verdict is None
+                              else "yes" if self.universal_verdict else "no"),
             }
 
     # -- lifecycle ----------------------------------------------------
@@ -165,6 +185,7 @@ class WoWChatManager:
         w = self.world
         while not self._stop.is_set():
             try:
+                self._settle_probes()
                 try:
                     line = w.inbox.get(timeout=0.5)
                     self._push_line(line)
@@ -187,6 +208,8 @@ class WoWChatManager:
                     self._note(_fmt_who(ev.get("detail", {})), "roster")
                 elif t == "channel_list":
                     self._note(_fmt_chan_list(ev.get("detail", {})), "roster")
+                elif t == "notification":
+                    self._on_notification(str(ev.get("text", "")))
                 elif t == "login_verify":
                     pass
                 elif t == "parse_error":
@@ -195,30 +218,89 @@ class WoWChatManager:
                 time.sleep(0.5)
 
     # -- actions ------------------------------------------------------
+    def resolve_lang(self, lang) -> tuple[int, bool]:
+        """Map a requested language to (tongue, probe?).
+
+        lang: "auto"/None = Universal-first with fallback; a number forces
+        that tongue with no fallback. While a probe is in flight, auto
+        degrades to the safe faction tongue so one session costs at most
+        one rejected send.
+        """
+        if lang is None or (isinstance(lang, str) and lang == "auto"):
+            if self.universal_verdict is False:
+                return self.language, False
+            now = time.time()
+            in_flight = any(now - p["ts"] < PROBE_WINDOW for p in self._probes)
+            if self.universal_verdict is None and not in_flight:
+                return 0, True
+            if self.universal_verdict is True:
+                return 0, False
+            return self.language, False
+        return int(lang), False
+
     def send(self, kind: str, text: str, target: str = "",
-             channel: str = "", lang: int | None = None) -> dict:
+             channel: str = "", lang="auto") -> dict:
         if self.state != "online" or not self.world:
             return {"ok": False, "error": "not online"}
-        if lang is None:
-            lang = self.language
+        tongue, probe = self.resolve_lang(lang)
         ctype = int(SENDABLE.get(kind, SENDABLE["say"]))
         try:
-            self.world.send_chat(ctype, int(lang), text, target=target,
+            self.world.send_chat(ctype, tongue, text, target=target,
                                  channel=channel)
+            if probe:
+                self._probes.append({"ts": time.time(), "ctype": ctype,
+                                     "text": text, "target": target,
+                                     "channel": channel})
             echo_kind = "whisper" if kind == "whisper" else kind
             if kind in ("whisper", "channel", "say", "yell", "party",
                         "guild", "raid"):
                 with self._lock:
                     self._seq += 1
-                    label = f"-> {target or channel or echo_kind}"
+                    label = (f"-> {target or channel or echo_kind} "
+                             f"[{language_name(tongue)}]")
                     self.history.append({
                         "id": self._seq, "ts": time.time(), "kind": "echo",
                         "ctype": ctype, "sender": label, "channel": channel,
-                        "text": text, "lang": lang,
+                        "text": text, "lang": tongue,
                     })
-            return {"ok": True}
+            return {"ok": True, "lang": tongue, "probed": probe}
         except Exception as exc:
             return {"ok": False, "error": str(exc)}
+
+    def _on_notification(self, text: str):
+        """Rejection callback: a language notification matching an in-flight
+        Universal probe means the send never went out -> resend it in the
+        faction tongue and remember the verdict for this session."""
+        if LANG_REJECT_HINT not in text.lower():
+            return
+        now = time.time()
+        fresh = [p for p in self._probes if now - p["ts"] < PROBE_GRACE]
+        if not fresh:
+            return
+        self._probes.clear()
+        self.universal_verdict = False
+        if not self.world:
+            return
+        for p in fresh:
+            try:
+                self.world.send_chat(p["ctype"], self.language, p["text"],
+                                     target=p["target"], channel=p["channel"])
+            except Exception:
+                pass
+        self._note(f"Universal rejected by server ({text.strip()}) — "
+                   f"resent in {language_name(self.language)}.", "system")
+
+    def _settle_probes(self):
+        """No rejection within PROBE_WINDOW => server accepts Universal."""
+        if self.universal_verdict is not None or not self._probes:
+            return
+        now = time.time()
+        if all(now - p["ts"] >= PROBE_WINDOW for p in self._probes):
+            self._probes.clear()
+            self.universal_verdict = True
+            if not self._accept_noted:
+                self._accept_noted = True
+                self._note("Server accepts Universal — using it.", "system")
 
     def join(self, name: str, password: str = "") -> dict:
         if not self.world:
@@ -280,6 +362,9 @@ class WoWChatManager:
         self.character = ""
         self.faction = ""
         self.language = 7
+        self.universal_verdict = None
+        self._probes = []
+        self._accept_noted = False
 
     def _cleanup_nets(self):
         try:

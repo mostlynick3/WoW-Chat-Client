@@ -67,13 +67,22 @@ def login():
 @app.post("/api/send")
 def send():
     body = request.get_json(force=True) or {}
-    lang = body.get("lang")
+    lang = body.get("lang", "auto")  # "auto" | number | "universal"
+    if isinstance(lang, str) and lang not in ("auto", "universal"):
+        try:
+            lang = int(lang)
+        except ValueError:
+            lang = "auto"
+    if lang == "universal":
+        lang = 0
+    elif lang is not None and lang != "auto":
+        lang = int(lang)
     return jsonify(mgr.send(
         kind=body.get("kind", "say"),
         text=body.get("text", ""),
         target=body.get("target", "") or "",
         channel=body.get("channel", "") or "",
-        lang=None if lang is None else int(lang),
+        lang=lang,
     ))
 
 

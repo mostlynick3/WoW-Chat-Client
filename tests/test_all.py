@@ -14,7 +14,11 @@ from wow.chat_defs import (
     Language,
     default_language_for_race,
     faction_of_race,
+    language_name,
 )
+from wow.world_socket import parse_notification
+
+from app.wow_client import WoWChatManager
 from wow.opcodes import Opcode
 from wow.world_socket import (
     build_auth_session,
@@ -86,6 +90,76 @@ class TestFactionLanguage(unittest.TestCase):
     def test_unknown_race_safe_fallback(self):
         self.assertEqual(faction_of_race(0), "unknown")
         self.assertEqual(default_language_for_race(0), Language.COMMON)
+
+    def test_language_names(self):
+        self.assertEqual(language_name(0), "Universal")
+        self.assertEqual(language_name(1), "Orcish")
+        self.assertEqual(language_name(7), "Common")
+
+
+class FakeWorld:
+    def __init__(self):
+        self.sent: list[tuple] = []
+
+    def send_chat(self, ctype, lang, text, target="", channel=""):
+        self.sent.append((ctype, lang, text, target, channel))
+
+
+class TestUniversalProbe(unittest.TestCase):
+    def _mgr(self):
+        m = WoWChatManager()
+        m.state = "online"
+        m.language = 1  # Horde -> Orcish fallback
+        m.world = FakeWorld()
+        return m
+
+    def test_auto_probes_universal_first(self):
+        m = self._mgr()
+        tongue, probe = m.resolve_lang("auto")
+        self.assertEqual((tongue, probe), (0, True))
+
+    def test_second_send_while_probing_uses_faction_tongue(self):
+        m = self._mgr()
+        m._probes.append({"ts": __import__("time").time(), "ctype": 1,
+                          "text": "hi", "target": "", "channel": ""})
+        self.assertEqual(m.resolve_lang("auto"), (1, False))
+
+    def test_rejection_resends_in_faction_tongue(self):
+        m = self._mgr()
+        r = m.send("say", "hello")
+        self.assertTrue(r["ok"] and r["probed"])
+        self.assertEqual(m.world.sent[-1][1], 0)
+        m._on_notification("Unknown language")
+        self.assertFalse(m.universal_verdict)
+        self.assertEqual(m.world.sent[-1][1], 1)  # resent Orcish
+        self.assertEqual(m.world.sent[-1][2], "hello")
+        # verdict cached: no more probing
+        self.assertEqual(m.resolve_lang("auto"), (1, False))
+
+    def test_unrelated_notification_ignored(self):
+        m = self._mgr()
+        m.send("say", "hello")
+        m._on_notification("You must wait a while before speaking.")
+        self.assertIsNone(m.universal_verdict)
+        self.assertEqual(len(m.world.sent), 1)
+
+    def test_silence_means_accepted(self):
+        import time as _t
+        m = self._mgr()
+        m.send("say", "hello")
+        m._probes[0]["ts"] -= 10  # age past PROBE_WINDOW
+        m._settle_probes()
+        self.assertTrue(m.universal_verdict)
+        self.assertEqual(m.resolve_lang("auto"), (0, False))
+
+    def test_forced_tongue_never_probes(self):
+        m = self._mgr()
+        self.assertEqual(m.resolve_lang(7), (7, False))
+        self.assertEqual(m.resolve_lang(0), (0, False))
+
+    def test_notification_parse(self):
+        self.assertEqual(parse_notification(b"Unknown language\x00"),
+                         "Unknown language")
 
 
 class TestPackets(unittest.TestCase):

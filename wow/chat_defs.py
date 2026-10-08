@@ -112,6 +112,18 @@ def default_language_for_race(race: int) -> int:
     return Language.COMMON
 
 
+def language_name(lang: int) -> str:
+    try:
+        l = int(lang) & 0xFFFFFFFF
+    except (TypeError, ValueError):
+        return "auto"
+    return {
+        Language.UNIVERSAL: "Universal",
+        Language.ORCISH: "Orcish",
+        Language.COMMON: "Common",
+    }.get(l, f"lang:{l}")
+
+
 class ChannelNotify(IntEnum):
     JOINED = 0x00
     LEFT = 0x01

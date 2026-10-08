@@ -34,10 +34,17 @@ python3 desktop.py
   `CHAR_ENUM` -> character select, `PLAYER_LOGIN`.
 - Chat send: Say / Yell / Emote / Party / Guild / Officer / Raid /
   RaidWarning / Battleground / Whisper / Channel.
-  Language defaults to Common (7); switchable to Orcish (1) /
-  Universal (0, GM/two-side servers). NOTE: stock cores reject
-  `LANG_UNIVERSAL` for normal chat (`ChatHandler.cpp`), so don't use 0
-  unless your server enables two-side chat or you are GM.
+  Language defaults to **Auto: Universal first, faction fallback**.
+  The core rejects client-sent Universal with `SMSG_NOTIFICATION`
+  (`0x1CB`, "Unknown language", acore_string 805) instead of
+  broadcasting, so the client watches ~4s for that rejection and
+  auto-resends in your faction tongue (Common 7 for Alliance, Orcish 1
+  for Horde, derived from your character's race). The verdict is cached
+  per session and shown in the header (`universal: yes/no`); while a
+  probe is in flight further sends use the safe faction tongue, so one
+  session costs at most one rejected send. You can also force a tongue
+  (Common/Orcish/Universal) from the dropdown — forced sends never
+  fall back.
 - Chat receive: `SMSG_MESSAGECHAT` + `SMSG_GM_MESSAGECHAT` tolerant parser
   (packed GUIDs, channel + GM variants).
 - Channels: join (`channel+password`), leave, list members,
