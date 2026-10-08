@@ -124,6 +124,16 @@ character from the UI; config file only provides defaults.
   if the character is near the speaker (same as in-game).
 - See `README` sections in `app/` + `wow/` for packet-level details.
 
+## Releases (CI)
+
+Every push to `main` runs `.github/workflows/release.yml`: PyInstaller
+builds the server binary (Linux) plus the desktop binaries (Linux,
+Windows, macOS) and publishes them on the rolling **`continuous`**
+prerelease. Release notes are generated from the commits since the
+previous build. Binaries are never stored in the repo (`dist/` is
+gitignored) — download them from the release page. The distributed
+binaries are the desktop ones; the server binary is for headless use.
+
 ## License
 
 Copyright (C) 2026 mostlynick3

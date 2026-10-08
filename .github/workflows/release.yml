@@ -1,0 +1,135 @@
+name: build-and-release
+
+# Every push to main: build the server + desktop binaries on all OSes
+# and (re)publish them on the rolling "continuous" release.
+# Nothing binary is ever stored in the repo (dist/ is gitignored).
+on:
+  push:
+    branches: [main]
+
+# Rolling release: runs must not overlap, queue them instead.
+concurrency:
+  group: continuous-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            sep: ":"
+            server: true
+          - os: windows-latest
+            sep: ";"
+            server: false
+          - os: macos-latest
+            sep: ":"
+            server: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install build deps
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip pyinstaller flask
+          python -m pip install pywebview || true
+      - name: build desktop binary (distributed)
+        shell: bash
+        run: |
+          python -m PyInstaller --noconfirm --onefile \
+            --name ygg-chat-desktop \
+            --add-data "web${{ matrix.sep }}web" desktop.py
+      - name: build server binary (linux only, headless use)
+        if: matrix.server
+        shell: bash
+        run: |
+          python -m PyInstaller --noconfirm --onefile \
+            --name ygg-chat \
+            --add-data "web:web" run.py
+      - name: stage artifacts
+        shell: bash
+        run: |
+          mkdir -p release
+          os="${{ matrix.os }}"
+          if [ "$os" = "windows-latest" ]; then
+            cp dist/ygg-chat-desktop.exe release/ygg-chat-desktop-windows.exe
+          elif [ "$os" = "macos-latest" ]; then
+            cp dist/ygg-chat-desktop release/ygg-chat-desktop-macos
+          else
+            cp dist/ygg-chat-desktop release/ygg-chat-desktop-linux
+            cp dist/ygg-chat release/ygg-chat-server-linux
+          fi
+          ls -la release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.os }}
+          path: release/
+          if-no-files-found: error
+
+  release:
+    name: publish continuous release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: publish rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=continuous
+          SHA=$(git rev-parse --short HEAD)
+          DATE=$(date -u +%Y-%m-%d)
+          TITLE="Continuous build $DATE ($SHA)"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            NOTES="$(git log --format='- %h %s (%an)' "$TAG"..HEAD)"
+            [ -z "$NOTES" ] && NOTES="- (no new commits)"
+          else
+            NOTES="$(git log --format='- %h %s (%an)' -20)"
+          fi
+          read -r -d '' BODY <<EOF || true
+          Automated build of \`main\` @ \`$SHA\` ($DATE).
+          Binaries are rebuilt on every push; \`dist/\` is never stored in the repo.
+
+          **Desktop (distributed)** — double-click and chat, no browser needed:
+          - \`ygg-chat-desktop-linux\`
+          - \`ygg-chat-desktop-windows.exe\`
+          - \`ygg-chat-desktop-macos\` (Apple Silicon runner; Intel Macs need Rosetta)
+
+          **Server (headless)** — serves the browser UI on port 5950:
+          - \`ygg-chat-server-linux\`
+
+          Linux desktop needs system WebKit2GTK to open its own window;
+          without it the binary falls back to the system browser.
+
+          ## Commits since last build
+          $NOTES
+          EOF
+          git tag -f "$TAG" HEAD
+          git push -f origin "$TAG"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$BODY"
+          else
+            gh release create "$TAG" release/* --title "$TITLE" \
+              --notes "$BODY" --prerelease
+          fi
+          ls -la release/
