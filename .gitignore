@@ -6,6 +6,10 @@ config.json
 dist/
 build/pyinstaller-build/
 *.spec
-/build/*/
+/build/ygg-chat/
+/build/ygg-chat-desktop/
 *.spec.bak
+*.AppImage
+WoW-Chat-Client.AppDir/
+build/appimagetool*
 .DS_Store

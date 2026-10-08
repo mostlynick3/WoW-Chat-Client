@@ -30,7 +30,7 @@ def main():
     time.sleep(1.2)
     try:
         import webview  # type: ignore
-        webview.create_window("Ygg Chat", url, width=1100, height=750)
+        webview.create_window("WoW Chat Client", url, width=1100, height=750)
         webview.start()
     except ImportError:
         print(f"pywebview not installed; opening system browser at {url}")

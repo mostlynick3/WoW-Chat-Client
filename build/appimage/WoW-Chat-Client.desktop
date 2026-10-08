@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=WoW Chat Client
+Comment=WotLK 3.3.5a chat client
+Exec=ygg-chat-desktop
+Icon=WoW-Chat-Client
+Categories=Game;Chat;
+Terminal=false

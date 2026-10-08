@@ -1,0 +1,3 @@
+#!/bin/sh
+# AppRun for the WoW Chat Client AppImage.
+exec "$APPDIR/usr/bin/ygg-chat-desktop" "$@"

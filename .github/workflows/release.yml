@@ -46,9 +46,27 @@ jobs:
           python -m pip install pywebview || true
       - name: build desktop binary (distributed)
         shell: bash
+        # Same trims as build/build-all.sh: exclude unused toolkits/data
+        # libs (else ~500MB), custom gi.repository.Gtk hook override
+        # (else ~1GB of cursor/icon themes), W icon per OS.
         run: |
+          case "${{ matrix.os }}" in
+            windows-latest) ICON_ARG="--icon build/icon.ico" ;;
+            macos-latest) ICON_ARG="--icon build/icon.icns" ;;
+            *) ICON_ARG="" ;;
+          esac
+          # shellcheck disable=SC2086
           python -m PyInstaller --noconfirm --onefile \
             --name ygg-chat-desktop \
+            --exclude-module PyQt5 --exclude-module PyQt6 \
+            --exclude-module PySide2 --exclude-module PySide6 \
+            --exclude-module wx \
+            --exclude-module numpy --exclude-module pandas \
+            --exclude-module scipy --exclude-module matplotlib \
+            --exclude-module pygame --exclude-module PIL \
+            --exclude-module tkinter \
+            $ICON_ARG \
+            --additional-hooks-dir build/pyinstaller-hooks \
             --add-data "web${{ matrix.sep }}web" desktop.py
       - name: build server binary (linux only, headless use)
         if: matrix.server
@@ -77,9 +95,32 @@ jobs:
           path: release/
           if-no-files-found: error
 
+  appimage:
+    name: appimage (linux)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries-ubuntu-latest
+          path: dl
+      - name: assemble AppImage
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp dl/ygg-chat-desktop-linux dist/ygg-chat-desktop
+          chmod +x dist/ygg-chat-desktop
+          bash build/build-appimage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-appimage
+          path: WoW-Chat-Client-linux-x86_64.AppImage
+          if-no-files-found: error
+
   release:
     name: publish continuous release
-    needs: build
+    needs: [build, appimage]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -110,6 +151,7 @@ jobs:
           Binaries are rebuilt on every push; \`dist/\` is never stored in the repo.
 
           **Desktop (distributed)** — double-click and chat, no browser needed:
+          - \`WoW-Chat-Client-linux-x86_64.AppImage\` (recommended on Linux)
           - \`ygg-chat-desktop-linux\`
           - \`ygg-chat-desktop-windows.exe\`
           - \`ygg-chat-desktop-macos\` (Apple Silicon runner; Intel Macs need Rosetta)
