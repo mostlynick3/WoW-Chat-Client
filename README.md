@@ -123,3 +123,21 @@ character from the UI; config file only provides defaults.
 - `SAY`/`YELL` are proximity-based server-side; you only *receive* them
   if the character is near the speaker (same as in-game).
 - See `README` sections in `app/` + `wow/` for packet-level details.
+
+## License
+
+Copyright (C) 2026 mostlynick3
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License version 2 as published
+by the Free Software Foundation. See `LICENSE` for the full text.
+
+## Graphics and intellectual property
+
+All graphics and artwork bundled or referenced by this client are the
+property of their respective owners. This repository lays no claim to
+copyright over Blizzard Entertainment material, including World of
+Warcraft, nor over the intellectual property or graphics of any of the
+servers included in the server list (Yggdrasil, TrueWoW, ChromieCraft,
+Rising Gods). Server logos and artwork are bundled locally for display
+in the login screen only.
