@@ -1,3 +1,8 @@
 #!/bin/sh
 # AppRun for the WoW Chat Client AppImage.
+# WebKitGTK's bubblewrap process sandbox cannot set up namespaces from
+# inside the AppImage container, which kills the web process and leaves
+# a permanently blank window — so it stays off here (same tradeoff as
+# Flatpak-packaged browsers).
+export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
 exec "$APPDIR/usr/bin/wow-chat-desktop" "$@"
