@@ -30,9 +30,9 @@ python3 desktop.py
 
 Login is a 3-step wizard: **account** (auth host/port + credentials) ->
 **realm** (picked from the live auth response, with host/port shown) ->
-**character** (picked with level/race/class/faction shown) -> enter world.
-World host/port overrides live under "Advanced" and default to whatever
-the realm list advertises.
+**character** (picked with level/race/class/faction shown) -> enter world,
+exactly like a stock client: the world address always comes from the
+realm list entry.
 
 ## What it does (v1)
 

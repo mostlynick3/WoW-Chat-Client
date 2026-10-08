@@ -138,9 +138,12 @@ class WoWChatManager:
                 pass
             self.auth = None
 
-    def fetch_characters(self, realm_id: int, world_host_override: str = "",
-                         world_port_override: int = 0) -> dict:
-        """Phase 2: world AUTH_SESSION + CHAR_ENUM for the chosen realm."""
+    def fetch_characters(self, realm_id: int) -> dict:
+        """Phase 2: world AUTH_SESSION + CHAR_ENUM for the chosen realm.
+
+        Like a stock client, the world address comes straight from the
+        realm list entry — no overrides.
+        """
         if self.state != "realms" or self._session_key is None:
             return {"ok": False, "error": "authenticate first"}
         target = next((r for r in self.realms if r["id"] == int(realm_id)),
@@ -150,10 +153,6 @@ class WoWChatManager:
                     "error": f"unknown realm id {realm_id}"}
         host, _, port_s = target["address"].partition(":")
         port = int(port_s or 8085)
-        if world_host_override:
-            host = world_host_override
-        if world_port_override:
-            port = int(world_port_override)
         self.realm_name = f"{target['name']} ({host}:{port})"
         self._realm_id = int(target["id"])
         self.status = f"world login {host}:{port} ..."

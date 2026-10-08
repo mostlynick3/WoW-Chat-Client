@@ -91,11 +91,7 @@ $("btnChars").onclick = async () => {
   msg.textContent = "";
   busy(btn, true, "Loading…");
   try {
-    const r = await api("/api/characters", {
-      realm_id: pickedRealm,
-      world_host_override: $("worldHost").value.trim(),
-      world_port_override: +$("worldPort").value || 0,
-    });
+    const r = await api("/api/characters", { realm_id: pickedRealm });
     if (!r.ok) { msg.textContent = "Failed: " + r.error; return; }
     renderChars(r.characters);
     gotoStep(3);

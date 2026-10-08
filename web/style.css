@@ -68,9 +68,6 @@ button.danger { color: #ff8f88; width: 100%; margin-top: 12px; }
 button:disabled { opacity: .5; cursor: wait; }
 .row { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
 .wrap { flex-wrap: wrap; }
-.adv { margin-top: 12px; color: var(--muted); font-size: 13px; }
-.adv summary { cursor: pointer; }
-.adv .grid2 { margin-top: 8px; }
 
 /* pick lists (realms / characters) */
 .picklist { display: grid; gap: 8px; margin: 4px 0 6px; }

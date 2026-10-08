@@ -29,12 +29,6 @@
         <label>Account<input id="username" autocomplete="username"></label>
         <label>Password<input id="password" type="password" autocomplete="current-password"></label>
       </div>
-      <details class="adv"><summary>Advanced (world overrides)</summary>
-        <div class="grid2">
-          <label>World host override<input id="worldHost" placeholder="from realm list by default"></label>
-          <label>World port override<input id="worldPort" placeholder="from realm list by default" inputmode="numeric"></label>
-        </div>
-      </details>
       <div class="row"><button id="btnAuth" class="primary">Connect &amp; list realms</button><span id="authMsg" class="msg"></span></div>
       <p class="hint">Credentials are used for the SRP handshake only and never stored. The session key lives in server memory and is wiped on logout.</p>
     </div>
