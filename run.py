@@ -12,5 +12,10 @@ if __name__ == "__main__":
     host = os.environ.get("YGG_CHAT_HOST", cfg.get("http_host", "127.0.0.1"))
     port = int(os.environ.get("YGG_CHAT_PORT",
                               cfg.get("http_port", 5950)))
-    print(f"ygg-chat-client on http://{host}:{port}")
-    app.run(host=host, port=port, threaded=True)
+    # Auto-reload on code changes (restarts the process when any .py file
+    # under the project changes). Disable with YGG_RELOAD=0, e.g. to keep
+    # a connection alive across edits.
+    reload = os.environ.get("YGG_RELOAD", "1") != "0"
+    print(f"ygg-chat-client on http://{host}:{port}"
+          + (" (auto-reload on)" if reload else ""))
+    app.run(host=host, port=port, threaded=True, use_reloader=reload)
