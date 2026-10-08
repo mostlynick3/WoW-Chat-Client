@@ -169,6 +169,7 @@ function showLogin() {
   $("chatView").classList.add("hidden");
   $("loginView").classList.remove("hidden");
   gotoStep(1);
+  checkUpdate();
 }
 function showChat() {
   // Fresh feed every login: never replay a previous session's lines.
@@ -182,43 +183,31 @@ function showChat() {
   renderTabs();
   $("loginView").classList.add("hidden");
   $("chatView").classList.remove("hidden");
-  // In-app update check: once per session, silent unless an update exists.
-  updateChecked = false;
-  checkUpdate(true);
 }
-/* Update check: baked-in build SHA (see /api/version) vs the tag the
-   rolling "continuous" release points at. Silent on failure/offline. */
-let updateChecked = false;
-async function checkUpdate(auto) {
-  if (auto && updateChecked) return;
-  updateChecked = true;
-  const msg = $("updateMsg");
+/* Update banner on the login page: shown only when a newer build is
+   pending on the releases page, otherwise stays hidden (and silent —
+   including offline or dev builds with no baked-in version). */
+async function checkUpdate() {
+  const box = $("updateBox");
+  box.classList.add("hidden");
   try {
     const v = await (await fetch("/api/version")).json();
+    const mine = String(v.sha || "");
+    if (!mine || mine === "dev") return;
     const r = await (await fetch(
       `https://api.github.com/repos/${v.repo}/releases/tags/${v.tag}`
     )).json();
-    if (!r || r.message || !r.target_commitish) {
-      if (!auto) msg.textContent = "No release published yet.";
-      return;
-    }
+    if (!r || r.message || !r.target_commitish) return;
     const latest = String(r.target_commitish);
-    const mine = String(v.sha || "");
-    if (!mine || mine === "dev") {
-      if (!auto) msg.textContent = "Dev build — version unknown.";
-      return;
-    }
-    if (latest.startsWith(mine) || mine.startsWith(latest)) {
-      msg.textContent = `Up to date (build #${v.build}).`;
-      return;
-    }
-    msg.innerHTML = `Update available (<a href="${v.releases_url}" ` +
-      `target="_blank" rel="noopener">get build #${latest.slice(0, 7)}</a>).`;
-  } catch {
-    if (!auto) msg.textContent = "Could not check for updates.";
-  }
+    if (latest.startsWith(mine) || mine.startsWith(latest)) return;
+    const link = $("updateLink");
+    link.href = v.releases_url;
+    const m = /#(\d+)/.exec(r.name || "");
+    link.textContent =
+      m ? `Update available (build #${m[1]})` : "Update available";
+    box.classList.remove("hidden");
+  } catch { /* offline or unreachable: show nothing */ }
 }
-$("btnUpdate").onclick = () => { updateChecked = false; checkUpdate(false); };
 
 $("btnAuth").onclick = async () => {
   const btn = $("btnAuth"), msg = $("authMsg");
@@ -720,13 +709,13 @@ $("btnLogout").onclick = async () => {
   $("whoResults").classList.add("hidden");
   $("chanMembers").innerHTML = "";
   $("chanMembers").classList.add("hidden");
-  $("updateMsg").textContent = "";
   renderTabs();
   showLogin();
   refreshStatus();
 };
 gotoStep(1);
 renderTabs();
+checkUpdate();
 refreshStatus();
 setInterval(refreshStatus, 3000);
 pollTimer = setInterval(poll, 1000);
