@@ -258,6 +258,8 @@ button:disabled { opacity: .5; cursor: wait; }
 .gamemenu .menuid { text-align: center; margin-bottom: 4px; }
 .gamemenu label { color: #c8c8c8; }
 .gamemenu .wowbtn-red { width: 100%; padding: 7px 10px; font-size: 15px; }
+.updatemsg { text-align: center; min-height: 1.5em; }
+.updatemsg a { color: var(--wow-yellow); }
 
 /* popups */
 #whoModal, #chanModal, #langModal { position: fixed; inset: 0; background: rgba(0, 0, 0, .65);

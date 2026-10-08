@@ -182,7 +182,43 @@ function showChat() {
   renderTabs();
   $("loginView").classList.add("hidden");
   $("chatView").classList.remove("hidden");
+  // In-app update check: once per session, silent unless an update exists.
+  updateChecked = false;
+  checkUpdate(true);
 }
+/* Update check: baked-in build SHA (see /api/version) vs the tag the
+   rolling "continuous" release points at. Silent on failure/offline. */
+let updateChecked = false;
+async function checkUpdate(auto) {
+  if (auto && updateChecked) return;
+  updateChecked = true;
+  const msg = $("updateMsg");
+  try {
+    const v = await (await fetch("/api/version")).json();
+    const r = await (await fetch(
+      `https://api.github.com/repos/${v.repo}/releases/tags/${v.tag}`
+    )).json();
+    if (!r || r.message || !r.target_commitish) {
+      if (!auto) msg.textContent = "No release published yet.";
+      return;
+    }
+    const latest = String(r.target_commitish);
+    const mine = String(v.sha || "");
+    if (!mine || mine === "dev") {
+      if (!auto) msg.textContent = "Dev build — version unknown.";
+      return;
+    }
+    if (latest.startsWith(mine) || mine.startsWith(latest)) {
+      msg.textContent = `Up to date (build #${v.build}).`;
+      return;
+    }
+    msg.innerHTML = `Update available (<a href="${v.releases_url}" ` +
+      `target="_blank" rel="noopener">get build #${latest.slice(0, 7)}</a>).`;
+  } catch {
+    if (!auto) msg.textContent = "Could not check for updates.";
+  }
+}
+$("btnUpdate").onclick = () => { updateChecked = false; checkUpdate(false); };
 
 $("btnAuth").onclick = async () => {
   const btn = $("btnAuth"), msg = $("authMsg");
@@ -684,6 +720,7 @@ $("btnLogout").onclick = async () => {
   $("whoResults").classList.add("hidden");
   $("chanMembers").innerHTML = "";
   $("chanMembers").classList.add("hidden");
+  $("updateMsg").textContent = "";
   renderTabs();
   showLogin();
   refreshStatus();

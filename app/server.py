@@ -34,6 +34,26 @@ WEB = os.path.join(BASE, "web")
 app = Flask(__name__)
 mgr = WoWChatManager()
 
+# Baked in by CI at build time (app/build_info.py, gitignored, generated
+# per release-build). Dev runs fall back to "dev".
+try:
+    from .build_info import BUILD_DATE, BUILD_NUMBER, BUILD_SHA
+except ImportError:
+    BUILD_NUMBER, BUILD_SHA, BUILD_DATE = 0, "dev", "dev"
+
+UPDATE_REPO = "mostlynick3/WoW-Chat-Client"
+UPDATE_TAG = "continuous"
+
+
+@app.get("/api/version")
+def version():
+    """Baked-in build identity for the in-app update check."""
+    return jsonify({
+        "build": BUILD_NUMBER, "sha": BUILD_SHA, "date": BUILD_DATE,
+        "repo": UPDATE_REPO, "tag": UPDATE_TAG,
+        "releases_url": f"https://github.com/{UPDATE_REPO}/releases",
+    })
+
 
 @app.get("/api/meta")
 def meta():

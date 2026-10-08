@@ -44,6 +44,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip pyinstaller flask
           python -m pip install pywebview || true
+      - name: stamp build version
+        # Baked into the binaries (see /api/version) for the in-app
+        # update check: build number + commit SHA + UTC date.
+        shell: bash
+        run: |
+          cat > app/build_info.py <<EOF
+          BUILD_NUMBER = ${{ github.run_number }}
+          BUILD_SHA = "${{ github.sha }}"
+          BUILD_DATE = "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          EOF
       - name: build desktop binary (distributed)
         shell: bash
         # Same trims as build/build-all.sh: exclude unused toolkits/data
@@ -133,13 +143,15 @@ jobs:
       - name: publish rolling release
         env:
           GH_TOKEN: ${{ github.token }}
+          RUN_NUMBER: ${{ github.run_number }}
         shell: bash
         run: |
           set -euo pipefail
           TAG=continuous
           SHA=$(git rev-parse --short HEAD)
+          FULL_SHA=$(git rev-parse HEAD)
           DATE=$(date -u +%Y-%m-%d)
-          TITLE="Continuous build $DATE ($SHA)"
+          TITLE="Continuous build #$RUN_NUMBER ($DATE, $SHA)"
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             NOTES="$(git log --format='- %h %s (%an)' "$TAG"..HEAD)"
             [ -z "$NOTES" ] && NOTES="- (no new commits)"
@@ -147,8 +159,9 @@ jobs:
             NOTES="$(git log --format='- %h %s (%an)' -20)"
           fi
           read -r -d '' BODY <<EOF || true
-          Automated build of \`main\` @ \`$SHA\` ($DATE).
+          Automated build of \`main\` @ \`$FULL_SHA\` ($DATE).
           Binaries are rebuilt on every push; \`dist/\` is never stored in the repo.
+          The app checks this release on startup (build #$RUN_NUMBER baked in).
 
           **Desktop (distributed)** — double-click and chat, no browser needed:
           - \`WoW-Chat-Client-linux-x86_64.AppImage\` (recommended on Linux)
