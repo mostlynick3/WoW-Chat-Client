@@ -70,6 +70,7 @@ class CharacterInfo:
     level: int = 0
     race: int = 0
     cls: int = 0
+    gender: int = 0
     zone: int = 0
     map: int = 0
 
@@ -106,6 +107,9 @@ class WorldClient:
         self.K: bytes | None = None
         self.inbox: "queue.Queue[ChatLine]" = queue.Queue()
         self.events: "queue.Queue[dict]" = queue.Queue()
+        # Synchronous replies consumed by foreground wait loops
+        # (login/logout), never by the background drain loop.
+        self.sync_events: "queue.Queue[dict]" = queue.Queue()
         self._stop = threading.Event()
         self._reader: threading.Thread | None = None
         self._ping_seq = 0
@@ -232,8 +236,11 @@ class WorldClient:
             while not self._stop.is_set():
                 try:
                     opcode, payload = self._recv_packet_raw()
-                except (ConnectionError, OSError, ValueError):
-                    self.events.put({"t": "disconnect"})
+                except (ConnectionError, OSError, ValueError) as exc:
+                    if self._stop.is_set():
+                        return  # we closed it ourselves; stay quiet
+                    self._log(f"world: connection lost ({exc})")
+                    self.events.put({"t": "disconnect", "detail": str(exc)})
                     return
                 try:
                     self._dispatch(opcode, payload)
@@ -266,16 +273,16 @@ class WorldClient:
                 self.inbox.put(line)
             return
         if opcode == int(Opcode.SMSG_CHANNEL_NOTIFY):
-            self.events.put({"t": "channel_notify",
-                             "detail": parse_channel_notify(payload)})
-            # also surface as a chat line for visibility
             d = parse_channel_notify(payload)
+            self.events.put({"t": "channel_notify", "detail": d})
+            # JOINED/LEFT carry a player guid: resolve it like chat senders.
+            sguid = d.get("guids", [0])[0] if d.get("guids") else 0
             self.inbox.put(ChatLine(ts=time.time(), opcode=opcode, ctype=-1,
                                     kind="notice",
                                     sender=d.get("channel", ""),
                                     channel=d.get("channel", ""),
                                     text=d.get("text", ""),
-                                    raw=str(d)))
+                                    raw=str(d), sender_guid=sguid or 0))
             return
         if opcode == int(Opcode.SMSG_CHANNEL_LIST):
             self.events.put({"t": "channel_list",
@@ -301,15 +308,16 @@ class WorldClient:
         if opcode == int(Opcode.SMSG_LOGIN_VERIFY_WORLD):
             r = Reader(payload)
             m, x, y, z, o = r.u32(), r.f32(), r.f32(), r.f32(), r.f32()
-            self.events.put({"t": "login_verify",
-                             "detail": {"map": m, "x": x, "y": y, "z": z}})
+            self.sync_events.put({"t": "login_verify",
+                                  "detail": {"map": m, "x": x, "y": y,
+                                             "z": z}})
             return
         if opcode == int(Opcode.SMSG_LOGOUT_RESPONSE):
-            self.events.put({"t": "logout_response",
-                             "detail": {"code": payload[0] if payload else -1}})
+            self.sync_events.put({"t": "logout_response",
+                                  "detail": {"code": payload[0] if payload else -1}})
             return
         if opcode == int(Opcode.SMSG_LOGOUT_COMPLETE):
-            self.events.put({"t": "logout_complete"})
+            self.sync_events.put({"t": "logout_complete"})
             return
         if opcode == int(Opcode.SMSG_COMPRESSED_UPDATE_OBJECT):
             return  # chat client ignores movement/object data
@@ -325,19 +333,14 @@ class WorldClient:
         self.player_guid = guid
         self._send(int(Opcode.CMSG_PLAYER_LOGIN),
                    struct.pack("<Q", guid))
-        t0 = time.time()
-        while time.time() - t0 < wait_verify:
-            try:
-                ev = self.events.get(timeout=0.3)
-            except queue.Empty:
-                continue
-            if ev.get("t") == "login_verify":
-                # re-queue for consumers then return
-                self.events.put(ev)
-                return ev["detail"]
-            self.events.put(ev)
-            time.sleep(0.05)
-        raise TimeoutError("no SMSG_LOGIN_VERIFY_WORLD")
+        try:
+            ev = self.sync_events.get(timeout=wait_verify)
+        except queue.Empty:
+            raise TimeoutError("no SMSG_LOGIN_VERIFY_WORLD")
+        if ev.get("t") != "login_verify":
+            self.sync_events.put(ev)
+            raise TimeoutError("no SMSG_LOGIN_VERIFY_WORLD")
+        return ev["detail"]
 
     def ping(self):
         self._ping_seq += 1
@@ -375,14 +378,17 @@ class WorldClient:
 
     def who(self, name_sub: str = "", zone_sub: str = "", min_level: int = 1,
             max_level: int = 80, race_mask: int = 0xFFFF,
-            class_mask: int = 0xFFFF, stranger_only: bool = False):
+            class_mask: int = 0xFFFF):
+        # Layout per HandleWhoOpcode: u32 min, u32 max, name, guild,
+        # race u32, class u32, zonesCount u32 + zone u32s, strCount + strs.
         w = Writer()
-        w.u32(min_level).u32(max_level).cstr(name_sub).cstr("")  # guild
+        w.u32(min_level).u32(max_level).cstr(name_sub).cstr("")
         w.u32(race_mask).u32(class_mask)
-        w.u32(0xFFFFFFFF).u32(0)  # zone ids: wildcard-ish
-        w.cstr(zone_sub)
-        w.cstr("")  # strings[0]
-        w.u8(0 if not stranger_only else 1)
+        w.u32(0)  # zonesCount: no zone-id filter
+        if zone_sub:
+            w.u32(1).cstr(zone_sub)
+        else:
+            w.u32(0)
         self._send(int(Opcode.CMSG_WHO), w.bytes())
 
     def name_query(self, guid: int):
@@ -396,14 +402,12 @@ class WorldClient:
         t0 = time.time()
         while time.time() - t0 < wait:
             try:
-                ev = self.events.get(timeout=0.3)
+                ev = self.sync_events.get(timeout=0.3)
             except queue.Empty:
                 continue
             if ev.get("t") in ("logout_complete", "logout_response",
                                "disconnect"):
-                self.events.put(ev)
                 break
-            self.events.put(ev)
 
     def close(self):
         self._stop.set()
@@ -440,7 +444,7 @@ def parse_char_enum(payload: bytes) -> list[CharacterInfo]:
             name = r.cstr()
             race = r.u8()
             cls = r.u8()
-            _gender = r.u8()
+            gender = r.u8()
             _skin = r.u8()
             _face = r.u8()
             _hair = r.u8()
@@ -462,7 +466,8 @@ def parse_char_enum(payload: bytes) -> list[CharacterInfo]:
                 r.u8()   # inventory type
                 r.u32()  # enchant aura
             out.append(CharacterInfo(guid=guid, name=name, level=level,
-                                     race=race, cls=cls, zone=zone, map=mmap))
+                                     race=race, cls=cls, gender=gender,
+                                     zone=zone, map=mmap))
         except ValueError:
             break
     return out
@@ -615,6 +620,9 @@ def parse_chat_packet(opcode: int, payload: bytes) -> ChatLine | None:
 
 
 def parse_channel_notify(payload: bytes) -> dict:
+    # Layout per Channel.cpp: u8 notify + channel cstr + type-specific tail
+    # (guids are FULL u64, like chat packets). Unknown tails are skipped
+    # byte-wise so notices never show binary garbage.
     try:
         r = Reader(payload)
         ntype = r.u8()
@@ -622,25 +630,80 @@ def parse_channel_notify(payload: bytes) -> dict:
             tname = ChannelNotify(ntype).name
         except ValueError:
             tname = f"0x{ntype:02X}"
-        channel = ""
         try:
             channel = r.cstr()
         except ValueError:
+            channel = ""
+        guids: list[int] = []
+        extra = ""
+
+        def _guid() -> int:
+            g = r.u64()
+            guids.append(g)
+            return g
+
+        try:
+            if ntype in (0x00, 0x01):  # JOINED / LEFT: "%s joined/left."
+                _guid()
+            elif ntype == 0x02:  # YOU_JOINED: u8 flags, u32 channelId, u32 0
+                r.u8()
+                r.u32()
+                r.u32()
+            elif ntype == 0x03:  # YOU_LEFT: u32 channelId, u8 constant
+                r.u32()
+                r.u8()
+            elif ntype in (0x07, 0x08, 0x0D, 0x0E, 0x0F, 0x10, 0x17,
+                           0x22, 0x23):
+                _guid()
+            elif ntype in (0x09, 0x16, 0x1D, 0x1E):  # trailing name cstr
+                try:
+                    extra = r.cstr()
+                except ValueError:
+                    pass
+            elif ntype == 0x0B:  # CHANNEL_OWNER: name cstr if present
+                try:
+                    if r.left():
+                        extra = r.cstr()
+                except ValueError:
+                    pass
+            elif ntype == 0x0C:  # MODE_CHANGE: guid + u8 old + u8 new
+                _guid()
+                r.u8()
+                r.u8()
+            elif ntype in (0x12, 0x14, 0x15):  # victim guid + actor guid
+                _guid()
+                _guid()
+        except ValueError:
             pass
-        rest = Reader(payload).all_cstrings()
-        # Payloads carry binary blobs (counts, guids) between strings;
-        # keep only printable fragments so notices never show \x18 garbage.
-        names = []
-        for s in rest[1:]:
-            cleaned = "".join(ch for ch in s if ch.isprintable()).strip()
-            if cleaned:
-                names.append(cleaned)
-        text = f"[{tname}] " + " ".join(names)
+        names = [e for e in (extra,) if e]
+        text = _notify_text(ntype, tname, channel, names)
         return {"notify": tname, "channel": channel, "names": names,
-                "text": text.strip()}
+                "guids": guids, "text": text}
     except Exception as exc:
         return {"notify": "UNKNOWN", "channel": "", "names": [],
-                "text": f"(unparsed notify: {exc})"}
+                "guids": [], "text": f"(unparsed notify: {exc})"}
+
+
+def _notify_text(ntype: int, tname: str, channel: str,
+                 names: list[str]) -> str:
+    # Feed shows sender/channel badges separately, so texts stay short
+    # and never repeat the channel name.
+    who = names[0] if names else ""
+    if ntype == 0x00:
+        return f"{who or 'Someone'} joined."
+    if ntype == 0x01:
+        return f"{who or 'Someone'} left."
+    if ntype == 0x02:
+        return "Joined channel."
+    if ntype == 0x03:
+        return "Left channel."
+    if ntype == 0x04:
+        return "Wrong password."
+    if ntype == 0x05:
+        return "Not on channel."
+    if who:
+        return f"[{tname}] {who}"
+    return f"[{tname}]"
 
 
 def parse_notification(payload: bytes) -> str:
@@ -694,11 +757,11 @@ def parse_who(payload: bytes) -> dict:
 
 
 def parse_name_query(payload: bytes) -> dict:
-    # NameQueryResponse::Write: guid FULL u64, NameUnknown u8,
-    # then Name cstr (+ realm/race/... which we skip).
+    # NameQueryResponse::Write: guid PACKED, NameUnknown u8, then Name
+    # cstr (+ RealmName cstr, race/sex/class u8s which we skip).
     try:
         r = Reader(payload)
-        guid = r.u64()
+        guid = r.packed_guid()
         unknown = r.u8()
         name = ""
         if not unknown and r.left():

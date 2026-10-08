@@ -69,6 +69,16 @@ class RealmEntry:
     name: str
     address: str  # "host:port"
     population: float = 0.0
+    rtype: int = 0  # RealmType: 0/4 Normal, 1 PvP, 6 RP, 8 RPPVP
+    chars: int = 0  # characters on this realm for this account
+
+
+class AuthTokenRequired(PermissionError):
+    """Server demands a TOTP authenticator code (securityFlags & 0x04)."""
+
+
+class AuthGridRequired(PermissionError):
+    """Server demands PIN/matrix input (securityFlags 0x01/0x02)."""
 
 
 class AuthClient:
@@ -119,8 +129,14 @@ class AuthClient:
     # -- public --------------------------------------------------------
     def logon(self, username: str, password: str,
               platform: str = "x86", os_: str = "Win",
-              locale: str = "enUS", build: int = BUILD) -> None:
-        """Full SRP6 handshake. Sets self.session_key (40 bytes)."""
+              locale: str = "enUS", build: int = BUILD,
+              token: str = "") -> None:
+        """Full SRP6 handshake. Sets self.session_key (40 bytes).
+
+        token: 6-digit TOTP code, only sent when the server advertises
+        securityFlags & 0x04. Raises AuthTokenRequired if the server
+        wants one and none was given.
+        """
         self._connect()
         assert self.sock
         sock = self.sock
@@ -151,30 +167,30 @@ class AuthClient:
         sec_flags = self._byte("logon-challenge reply (security flags)")
         self._log(f"auth: challenge ok (B/N/salt received, "
                   f"securityFlags={sec_flags})")
-        if sec_flags not in (0, 1, 2, 4):
-            raise PermissionError(
-                f"account needs an unsupported second factor "
-                f"(securityFlags={sec_flags})")
         if sec_flags & 0x01:
             # PIN input: u32 + 16-byte hash follows the flags byte.
             _pin = self._recv(4 + 16, "logon-challenge reply (PIN grid)")
-            raise PermissionError("account requires PIN entry (unsupported)")
+            raise AuthGridRequired(
+                "account requires PIN entry (unsupported)")
         if sec_flags & 0x02:
             # Matrix input: 4x u8 + u64.
             _mx = self._recv(4 + 8, "logon-challenge reply (matrix)")
-            raise PermissionError(
+            raise AuthGridRequired(
                 "account requires matrix-card entry (unsupported)")
+        if (sec_flags & 0x04) and not (token or "").strip().isdigit():
+            raise AuthTokenRequired(
+                "account has an authenticator: enter the 6-digit code")
 
         a, A_le = srp.generate_client_ephemeral()
         K, M1 = srp.compute_session_key(a, A_le, B_le, salt, username, password)
         crc = bytes(20)  # WoW.exe CRC; only checked with StrictVersionCheck
-        sock.sendall(
-            bytes([CMD_AUTH_LOGON_PROOF])
-            + A_le
-            + M1
-            + crc
-            + bytes([0, 0])  # keys=0, securityFlags=0
-        )
+        tok = (token or "").strip()
+        tok_flag = 0x04 if tok.isdigit() else 0
+        proof = (bytes([CMD_AUTH_LOGON_PROOF]) + A_le + M1 + crc
+                 + bytes([0, tok_flag]))  # keys=0, securityFlags
+        if tok_flag:
+            proof += bytes([len(tok)]) + tok.encode("ascii")
+        sock.sendall(proof)
         self._log("auth: logon proof sent, awaiting reply ...")
 
         cmd = self._byte("logon-proof reply")
@@ -231,7 +247,7 @@ def parse_realm_blob(blob: bytes, n_realms: int) -> list[RealmEntry]:
     pos = 0
     out: list[RealmEntry] = []
     for _ in range(n_realms):
-        _type = blob[pos]
+        rtype = blob[pos]
         pos += 1
         _locked = blob[pos]
         pos += 1
@@ -251,7 +267,7 @@ def parse_realm_blob(blob: bytes, n_realms: int) -> list[RealmEntry]:
             raise ConnectionError("truncated realm-list entry (stats)")
         population = _st.unpack_from("<f", blob, pos)[0]
         pos += 4
-        _n_chars = blob[pos]
+        n_chars = blob[pos]
         pos += 1
         _tz = blob[pos]
         pos += 1
@@ -260,5 +276,6 @@ def parse_realm_blob(blob: bytes, n_realms: int) -> list[RealmEntry]:
         if flags & 0x04:  # REALM_FLAG_SPECIFYBUILD: 3xu8 + u16 follow
             pos += 5
         out.append(RealmEntry(id=realm_id, name=name, address=addr,
-                              population=population))
+                              population=population, rtype=rtype,
+                              chars=n_chars))
     return out
