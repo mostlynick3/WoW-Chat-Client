@@ -180,6 +180,98 @@ class TestUniversalProbe(unittest.TestCase):
                          "Unknown language")
 
 
+class FakeAuthClient:
+    def __init__(self, host, port=3724, timeout=15.0):
+        self.session_key = None
+        self.closed = False
+
+    def logon(self, username, password):
+        if password != "right":
+            raise PermissionError("auth proof failed")
+        self.session_key = bytes(range(40))
+
+    def realm_list(self):
+        from collections import namedtuple
+        R = namedtuple("R", ["id", "name", "address", "population"])
+        return [R(1, "Azeroth", "10.0.0.5:8085", 0.5),
+                R(2, "Northrend", "10.0.0.6:8085", 1.0)]
+
+    def close(self):
+        self.closed = True
+
+
+class FakeWorldClient:
+    def __init__(self):
+        from wow.world_socket import CharacterInfo
+        self.characters = [CharacterInfo(guid=1001, name="Thrall", level=80,
+                                         race=2, cls=7),
+                           CharacterInfo(guid=1002, name="Jaina", level=80,
+                                         race=1, cls=8)]
+        self.logged_in = None
+
+    def connect(self, host, port):
+        self.addr = (host, port)
+
+    def login(self, account, key, realm_id):
+        self.logged_in = (account, realm_id)
+
+    def player_login(self, guid):
+        self.entered = guid
+
+    def close(self):
+        pass
+
+
+class TestLoginWizard(unittest.TestCase):
+    def _mgr(self):
+        import app.wow_client as wc
+        self._orig_auth, self._orig_world = wc.AuthClient, wc.WorldClient
+        wc.AuthClient = FakeAuthClient
+        wc.WorldClient = FakeWorldClient
+        m = wc.WoWChatManager()
+        m.state = "offline"
+        self.addCleanup(setattr, wc, "AuthClient", self._orig_auth)
+        self.addCleanup(setattr, wc, "WorldClient", self._orig_world)
+        return m
+
+    def test_auth_returns_realm_choice(self):
+        m = self._mgr()
+        r = m.fetch_realms("h", 3724, "user", "right")
+        self.assertTrue(r["ok"])
+        self.assertEqual([x["name"] for x in r["realms"]],
+                         ["Azeroth", "Northrend"])
+        self.assertEqual(m.state, "realms")
+        # password must not be retained anywhere
+        self.assertNotIn("right", repr(m.__dict__))
+
+    def test_auth_bad_password(self):
+        m = self._mgr()
+        r = m.fetch_realms("h", 3724, "user", "wrong")
+        self.assertFalse(r["ok"])
+        self.assertEqual(m.state, "offline")
+
+    def test_realm_to_characters_to_enter(self):
+        m = self._mgr()
+        m.fetch_realms("h", 3724, "user", "right")
+        r = m.fetch_characters(2)
+        self.assertTrue(r["ok"])
+        self.assertEqual([c["name"] for c in r["characters"]],
+                         ["Thrall", "Jaina"])
+        self.assertIn("10.0.0.6", r["realm"])
+        # Horde pick -> Orcish fallback tongue
+        r = m.enter_world("Thrall")
+        self.assertTrue(r["ok"])
+        self.assertEqual((m.character, m.faction, m.language),
+                         ("Thrall", "horde", 1))
+        self.assertEqual(m.state, "online")
+
+    def test_unknown_realm_rejected(self):
+        m = self._mgr()
+        m.fetch_realms("h", 3724, "user", "right")
+        r = m.fetch_characters(99)
+        self.assertFalse(r["ok"])
+
+
 class TestPackets(unittest.TestCase):
     def test_client_header(self):
         h = build_client_header(0x1ED, 10)

@@ -28,6 +28,12 @@ python3 run.py                        # open http://127.0.0.1:5950
 python3 desktop.py
 ```
 
+Login is a 3-step wizard: **account** (auth host/port + credentials) ->
+**realm** (picked from the live auth response, with host/port shown) ->
+**character** (picked with level/race/class/faction shown) -> enter world.
+World host/port overrides live under "Advanced" and default to whatever
+the realm list advertises.
+
 ## What it does (v1)
 
 - Auth: account login (SRP6), realm list select, world `AUTH_SESSION`,

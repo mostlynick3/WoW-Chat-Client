@@ -61,6 +61,10 @@ class WoWChatManager:
         self._drain_thread: threading.Thread | None = None
         self._stop = threading.Event()
         self.realms: list[dict] = []
+        # Pending wizard state between phases (cleared on disconnect).
+        self._session_key: bytes | None = None
+        self._account_upper = ""
+        self._realm_id = 0
 
     # -- helpers ------------------------------------------------------
     def _push_line(self, line: ChatLine):
@@ -95,58 +99,102 @@ class WoWChatManager:
                               else "yes" if self.universal_verdict else "no"),
             }
 
-    # -- lifecycle ----------------------------------------------------
-    def login(self, auth_host: str, auth_port: int, username: str,
-              password: str, realm_id: int,
-              world_host_override: str = "",
-              world_port_override: int = 0,
-              character_name: str = "") -> dict:
+    # -- lifecycle: 1) auth -> realms  2) realm -> characters  3) enter --
+    def fetch_realms(self, auth_host: str, auth_port: int, username: str,
+                     password: str) -> dict:
+        """Phase 1: SRP logon, return the realm list for user selection.
+
+        The password is used for the handshake only and never stored;
+        the session key is kept in memory for the world login (phase 2).
+        """
         self.disconnect(silent=True)
         self._stop.clear()
         self.state = "auth"
         self.account = username
         self.status = f"authenticating {username}@{auth_host}:{auth_port} ..."
+        auth = AuthClient(auth_host, int(auth_port))
         try:
-            auth = AuthClient(auth_host, int(auth_port))
             auth.logon(username, password)
-            self.auth = auth
             realms = auth.realm_list()
-            self.realms = [{"id": r.id, "name": r.name, "address": r.address}
-                           for r in realms]
-            target = next((r for r in realms if r.id == int(realm_id)), None)
-            if target is None:
-                if realms:
-                    target = realms[0]
-                else:
-                    raise ConnectionError("server returned no realms")
-            host, _, port_s = target.address.partition(":")
-            port = int(port_s or 8085)
-            if world_host_override:
-                host = world_host_override
-            if world_port_override:
-                port = int(world_port_override)
-            self.realm_name = f"{target.name} ({host}:{port})"
-            self.status = f"world login {host}:{port} ..."
-            self.state = "world"
-            world = WorldClient()
             assert auth.session_key is not None
+            self._session_key = bytes(auth.session_key)
+            self._account_upper = username.upper()
+            self.realms = [{"id": r.id, "name": r.name, "address": r.address,
+                            "population": r.population} for r in realms]
+            if not self.realms:
+                raise ConnectionError("server returned no realms")
+            self.state = "realms"
+            self.status = f"authenticated — select a realm"
+            return {"ok": True, "realms": self.realms}
+        except Exception as exc:
+            self.status = f"error: {exc}"
+            self.state = "offline"
+            self._cleanup_nets()
+            return {"ok": False, "error": str(exc)}
+        finally:
+            try:
+                auth.close()
+            except Exception:
+                pass
+            self.auth = None
+
+    def fetch_characters(self, realm_id: int, world_host_override: str = "",
+                         world_port_override: int = 0) -> dict:
+        """Phase 2: world AUTH_SESSION + CHAR_ENUM for the chosen realm."""
+        if self.state != "realms" or self._session_key is None:
+            return {"ok": False, "error": "authenticate first"}
+        target = next((r for r in self.realms if r["id"] == int(realm_id)),
+                      None)
+        if target is None:
+            return {"ok": False,
+                    "error": f"unknown realm id {realm_id}"}
+        host, _, port_s = target["address"].partition(":")
+        port = int(port_s or 8085)
+        if world_host_override:
+            host = world_host_override
+        if world_port_override:
+            port = int(world_port_override)
+        self.realm_name = f"{target['name']} ({host}:{port})"
+        self._realm_id = int(target["id"])
+        self.status = f"world login {host}:{port} ..."
+        self.state = "world"
+        try:
+            world = WorldClient()
             world.connect(host, port)
-            world.login(username.upper(), auth.session_key, target.id)
+            world.login(self._account_upper, self._session_key,
+                        self._realm_id)
             self.world = world
             chars = [{"guid": c.guid, "name": c.name, "level": c.level,
-                        "race": c.race, "class": c.cls}
+                      "race": c.race, "class": c.cls}
                      for c in world.characters]
             if not chars:
                 raise ConnectionError("no characters on this realm/account")
-            pick = character_name or chars[0]["name"]
-            entry = next((c for c in chars if c["name"].lower() == pick.lower()),
-                         None)
-            if entry is None:
-                raise ConnectionError(
-                    f"character '{pick}' not found. Available: "
-                    + ", ".join(c["name"] for c in chars))
+            self.state = "chars"
+            self.status = f"select a character on {target['name']}"
+            return {"ok": True, "realm": self.realm_name, "characters": chars}
+        except Exception as exc:
+            self.status = f"error: {exc}"
+            self.state = "realms"
+            self._cleanup_world()
+            return {"ok": False, "error": str(exc)}
+
+    def enter_world(self, character_name: str = "") -> dict:
+        """Phase 3: PLAYER_LOGIN for the chosen character, go online."""
+        if self.state != "chars" or not self.world:
+            return {"ok": False, "error": "select a realm first"}
+        chars = [{"guid": c.guid, "name": c.name, "level": c.level,
+                  "race": c.race, "class": c.cls}
+                 for c in self.world.characters]
+        pick = (character_name or "").strip() or (chars[0]["name"]
+                                                  if chars else "")
+        entry = next((c for c in chars if c["name"].lower() == pick.lower()),
+                     None)
+        if entry is None:
+            return {"ok": False,
+                    "error": f"character '{pick}' not found"}
+        try:
             self.status = f"entering world as {entry['name']} ..."
-            world.player_login(entry["guid"])
+            self.world.player_login(entry["guid"])
             self.character = entry["name"]
             self.faction = faction_of_race(entry.get("race", 0))
             self.language = default_language_for_race(entry.get("race", 0))
@@ -155,7 +203,6 @@ class WoWChatManager:
             self._note(f"Logged in as {self.character} on {self.realm_name}. "
                        f"Say/Yell are proximity-based; join World channel with "
                        f"/join World if your server has one.")
-            # background loops
             self._ping_thread = threading.Thread(target=self._ping_loop,
                                                  daemon=True)
             self._drain_thread = threading.Thread(target=self._drain_loop,
@@ -164,12 +211,10 @@ class WoWChatManager:
             self._drain_thread.start()
             return {"ok": True, "character": self.character,
                     "realm": self.realm_name,
-                    "faction": self.faction, "language": self.language,
-                    "characters": [c["name"] for c in chars]}
+                    "faction": self.faction, "language": self.language}
         except Exception as exc:
             self.status = f"error: {exc}"
-            self.state = "offline"
-            self._cleanup_nets()
+            self.state = "chars"
             return {"ok": False, "error": str(exc)}
 
     def _ping_loop(self):
@@ -371,13 +416,24 @@ class WoWChatManager:
         self.universal_verdict = None
         self._probes = []
         self._accept_noted = False
+        self.realms = []
+        self.realm_name = ""
+        self._realm_id = 0
+        self._account_upper = ""
+        if self._session_key:
+            self._session_key = b"\x00" * len(self._session_key)
+            self._session_key = None
 
-    def _cleanup_nets(self):
+    def _cleanup_world(self):
+        """Drop the world connection but keep auth state (realm retry)."""
         try:
             if self.world:
                 self.world.close()
         finally:
             self.world = None
+
+    def _cleanup_nets(self):
+        self._cleanup_world()
         try:
             if self.auth:
                 self.auth.close()

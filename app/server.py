@@ -3,9 +3,12 @@
   GET  /api/status                 connection snapshot
   GET  /api/realms                 last realm list
   GET  /api/messages?since_id=N   new chat lines
-  POST /api/login                  {auth_host,auth_port,username,password,
-                                    realm_id,world_host_override,
-                                    world_port_override,character_name}
+  POST /api/auth                   {auth_host,auth_port,username,password}
+                                   -> {realms:[{id,name,address}]}
+  POST /api/characters             {realm_id,world_host_override?,
+                                    world_port_override?}
+                                   -> {characters:[{name,level,race,class}]}
+  POST /api/enter                  {character_name} -> enter world
   POST /api/send                   {kind,say|yell|...,text,target,channel,lang}
   POST /api/join  {name,password}  POST /api/leave {name}
   POST /api/chanlist {name}        POST /api/who {...}
@@ -48,20 +51,35 @@ def messages():
     return jsonify({"messages": mgr.get_messages(since)})
 
 
-@app.post("/api/login")
-def login():
+@app.post("/api/auth")
+def auth():
+    """Phase 1: credentials -> realm list (no manual realm id needed)."""
     body = request.get_json(force=True) or {}
-    res = mgr.login(
+    res = mgr.fetch_realms(
         auth_host=body.get("auth_host", "127.0.0.1"),
         auth_port=int(body.get("auth_port", 3724)),
         username=body.get("username", ""),
         password=body.get("password", ""),
-        realm_id=int(body.get("realm_id", 1)),
-        world_host_override=body.get("world_host_override", "") or "",
-        world_port_override=int(body.get("world_port_override", 0) or 0),
-        character_name=body.get("character_name", "") or "",
     )
     return jsonify(res)
+
+
+@app.post("/api/characters")
+def characters():
+    """Phase 2: chosen realm id -> character list."""
+    body = request.get_json(force=True) or {}
+    return jsonify(mgr.fetch_characters(
+        realm_id=int(body.get("realm_id", 0)),
+        world_host_override=body.get("world_host_override", "") or "",
+        world_port_override=int(body.get("world_port_override", 0) or 0),
+    ))
+
+
+@app.post("/api/enter")
+def enter():
+    """Phase 3: chosen character -> enter world."""
+    body = request.get_json(force=True) or {}
+    return jsonify(mgr.enter_world(body.get("character_name", "") or ""))
 
 
 @app.post("/api/send")

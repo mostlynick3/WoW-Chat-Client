@@ -7,69 +7,103 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>Ygg Chat <span class="sub">WotLK 3.3.5a chat client</span></h1>
-  <div id="conn"><span id="dot"></span><span id="connText">offline</span></div>
+<header class="topbar">
+  <div class="brand"><span class="logo">Y</span><div><h1>Ygg Chat</h1><p>WotLK 3.3.5a chat client</p></div></div>
+  <div id="statusPill" class="pill"><span id="dot"></span><span id="connText">offline</span></div>
 </header>
 
 <main>
-  <section id="loginCard" class="card">
-    <h2>Connect</h2>
-    <div class="grid">
-      <label>Auth host <input id="authHost" value="127.0.0.1"></label>
-      <label>Auth port <input id="authPort" value="3724" inputmode="numeric"></label>
-      <label>Account <input id="username" autocomplete="username"></label>
-      <label>Password <input id="password" type="password" autocomplete="current-password"></label>
-      <label>Realm ID <input id="realmId" value="1" inputmode="numeric"></label>
-      <label>Character (blank = first) <input id="charName" placeholder="optional"></label>
-      <label>World host override <input id="worldHost" placeholder="optional"></label>
-      <label>World port override <input id="worldPort" placeholder="optional"></label>
+  <!-- ============ LOGIN WIZARD ============ -->
+  <section id="loginView" class="wizard card">
+    <ol class="steps">
+      <li id="step1dot" class="active"><b>1</b> Account</li>
+      <li id="step2dot"><b>2</b> Realm</li>
+      <li id="step3dot"><b>3</b> Character</li>
+    </ol>
+
+    <div id="pane1" class="pane">
+      <h2>Connect to your server</h2>
+      <div class="grid2">
+        <label>Auth host<input id="authHost" value="127.0.0.1" autocomplete="off"></label>
+        <label>Auth port<input id="authPort" value="3724" inputmode="numeric"></label>
+        <label>Account<input id="username" autocomplete="username"></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password"></label>
+      </div>
+      <details class="adv"><summary>Advanced (world overrides)</summary>
+        <div class="grid2">
+          <label>World host override<input id="worldHost" placeholder="from realm list by default"></label>
+          <label>World port override<input id="worldPort" placeholder="from realm list by default" inputmode="numeric"></label>
+        </div>
+      </details>
+      <div class="row"><button id="btnAuth" class="primary">Connect &amp; list realms</button><span id="authMsg" class="msg"></span></div>
+      <p class="hint">Credentials are used for the SRP handshake only and never stored. The session key lives in server memory and is wiped on logout.</p>
     </div>
-    <div class="row">
-      <button id="btnLogin">Log in &amp; enter world</button>
-      <button id="btnLogout" class="ghost">Log out</button>
-      <span id="loginMsg" class="msg"></span>
+
+    <div id="pane2" class="pane hidden">
+      <h2>Choose a realm</h2>
+      <div id="realmList" class="picklist"></div>
+      <div class="row"><button id="btnBack1" class="ghost">← Back</button><button id="btnChars" class="primary">Load characters</button><span id="realmMsg" class="msg"></span></div>
     </div>
-    <p class="hint">Credentials stay in server memory only. Session key is zeroed on logout.
-    Say/Yell are proximity-based: stand near speakers or use World/guild channels.</p>
+
+    <div id="pane3" class="pane hidden">
+      <h2>Choose a character</h2>
+      <div id="charList" class="picklist"></div>
+      <div class="row"><button id="btnBack2" class="ghost">← Back</button><button id="btnEnter" class="primary">Enter world</button><span id="charMsg" class="msg"></span></div>
+    </div>
   </section>
 
-  <section id="chatCard" class="card hidden">
-    <h2>Chat <span id="whoami" class="sub"></span></h2>
-    <div id="feed"></div>
-    <div class="row wrap">
-      <select id="kind">
-        <option value="say">Say</option>
-        <option value="yell">Yell</option>
-        <option value="emote">Emote</option>
-        <option value="party">Party</option>
-        <option value="guild">Guild</option>
-        <option value="officer">Officer</option>
-        <option value="raid">Raid</option>
-        <option value="raid_warning">RaidWarn</option>
-        <option value="battleground">BG</option>
-        <option value="whisper">Whisper</option>
-        <option value="channel" selected>Channel</option>
-      </select>
-      <input id="target" placeholder="whisper to / channel name" value="World">
-      <select id="lang" title="Auto tries Universal first and falls back to your faction tongue if the server rejects it (SMSG_NOTIFICATION). Force options skip the fallback.">
-        <option value="auto" selected>Auto: Universal → faction</option>
-        <option value="7">Common (7)</option>
-        <option value="1">Orcish (1)</option>
-        <option value="0">Universal (0, force)</option>
-      </select>
-      <input id="text" placeholder="message…  (Enter to send, /join X to join channel)" size="40">
-      <button id="btnSend">Send</button>
-    </div>
-    <div class="row wrap">
-      <input id="chanName" placeholder="channel" value="World">
-      <input id="chanPass" placeholder="password (optional)" size="12">
-      <button id="btnJoin">Join</button>
-      <button id="btnLeave" class="ghost">Leave</button>
-      <button id="btnChanList" class="ghost">List members</button>
-      <input id="whoName" placeholder="who: name filter" size="12">
-      <button id="btnWho" class="ghost">Who</button>
-    </div>
+  <!-- ============ CHAT ============ -->
+  <section id="chatView" class="hidden chatlayout">
+    <aside class="side">
+      <div class="card idcard">
+        <div class="charname" id="whoChar">–</div>
+        <div class="muted" id="whoRealm">–</div>
+        <div class="badges"><span id="factionBadge" class="badge">–</span><span id="uniBadge" class="badge ghost">universal: …</span></div>
+        <button id="btnLogout" class="ghost danger">Log out</button>
+      </div>
+      <div class="card">
+        <h3>Channels</h3>
+        <label>Channel<input id="chanName" value="World"></label>
+        <label>Password<input id="chanPass" placeholder="optional"></label>
+        <div class="row wrap">
+          <button id="btnJoin" class="primary">Join</button>
+          <button id="btnLeave" class="ghost">Leave</button>
+          <button id="btnChanList" class="ghost">Members</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Who's online</h3>
+        <label>Name filter<input id="whoName" placeholder="part of a name"></label>
+        <div class="row"><button id="btnWho" class="ghost">Search</button></div>
+      </div>
+    </aside>
+    <section class="card chatmain">
+      <div id="feed"></div>
+      <div class="composer">
+        <select id="kind" title="Chat type">
+          <option value="say">Say</option>
+          <option value="yell">Yell</option>
+          <option value="emote">Emote</option>
+          <option value="party">Party</option>
+          <option value="guild">Guild</option>
+          <option value="officer">Officer</option>
+          <option value="raid">Raid</option>
+          <option value="raid_warning">RaidWarn</option>
+          <option value="battleground">BG</option>
+          <option value="whisper">Whisper</option>
+          <option value="channel" selected>Channel</option>
+        </select>
+        <input id="target" value="World" title="Whisper target / channel name">
+        <select id="lang" title="Auto tries Universal first, falls back to your faction tongue if the server rejects it.">
+          <option value="auto" selected>Auto</option>
+          <option value="7">Common</option>
+          <option value="1">Orcish</option>
+          <option value="0">Univ.</option>
+        </select>
+        <input id="text" placeholder="Message…  (Enter sends, /join Name joins)" autocomplete="off">
+        <button id="btnSend" class="primary">Send</button>
+      </div>
+    </section>
   </section>
 </main>
 
