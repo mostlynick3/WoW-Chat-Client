@@ -4,99 +4,74 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ygg Chat — WotLK chat client</title>
+<link rel="icon" href="favicon.ico">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand"><span class="logo">Y</span><div><h1>Ygg Chat</h1><p>WotLK 3.3.5a chat client</p></div></div>
-  <div id="statusPill" class="pill"><span id="dot"></span><span id="connText">offline</span></div>
-</header>
-
 <main>
-  <!-- ============ LOGIN WIZARD ============ -->
-  <section id="loginView" class="wizard card">
-    <ol class="steps">
-      <li id="step1dot" class="active"><b>1</b> Account</li>
-      <li id="step2dot"><b>2</b> Realm</li>
-      <li id="step3dot"><b>3</b> Character</li>
-    </ol>
-
-    <div id="pane1" class="pane">
-      <h2>Connect to your server</h2>
-      <div class="grid2">
-        <label class="span2">Server
-          <select id="serverPick">
-            <option value="yggdrasil" selected>Yggdrasil</option>
-            <option value="truewow">TrueWoW</option>
-            <option value="chromiecraft">ChromieCraft</option>
-            <option value="risinggods">Rising Gods</option>
-            <option value="manual">Manual entry…</option>
-          </select>
-        </label>
+  <!-- ============ LOGIN WIZARD (in-game style) ============ -->
+  <section id="loginView" class="wizard wowscreen">
+    <div id="pane1" class="pane wowlogin">
+      <div class="gametitle">WoW Chat Client</div>
+      <div class="wowfield">
+        <label class="wowlabel" for="serverPick">Server</label>
+        <select id="serverPick" class="wowinput">
+          <option value="yggdrasil" selected>Yggdrasil</option>
+          <option value="truewow">TrueWoW</option>
+          <option value="chromiecraft">ChromieCraft</option>
+          <option value="risinggods">Rising Gods</option>
+          <option value="manual">Manual entry…</option>
+        </select>
       </div>
-      <div id="manualBox" class="grid2 hidden" style="margin-top:10px">
-        <label>Auth address<input id="authHost" placeholder="logon.example.com" autocomplete="off"></label>
-        <label>Auth port<input id="authPort" value="3724" inputmode="numeric"></label>
+      <div id="manualBox" class="hidden">
+        <div class="wowfield"><label class="wowlabel" for="authHost">Auth address</label>
+          <input id="authHost" class="wowinput" placeholder="logon.example.com" autocomplete="off"></div>
+        <div class="wowfield"><label class="wowlabel" for="authPort">Auth port</label>
+          <input id="authPort" class="wowinput" value="3724" inputmode="numeric"></div>
       </div>
-      <div class="grid2" style="margin-top:10px">
-        <label>Account<input id="username" autocomplete="username"></label>
-        <label>Password<input id="password" type="password" autocomplete="current-password"></label>
+      <div class="wowfield">
+        <label class="wowlabel" for="username">Account Name</label>
+        <input id="username" class="wowinput" autocomplete="username">
       </div>
-      <div class="row"><button id="btnAuth" class="primary">Connect &amp; list realms</button><span id="authMsg" class="msg"></span></div>
-      <p class="hint">Credentials are used for the SRP handshake only and never stored. The session key lives in server memory and is wiped on logout.</p>
+      <div class="wowfield">
+        <label class="wowlabel" for="password">Password</label>
+        <input id="password" class="wowinput" type="password" autocomplete="current-password">
+      </div>
+      <div id="tokenBox" class="wowfield hidden">
+        <label class="wowlabel" for="token">Authenticator code</label>
+        <input id="token" class="wowinput" inputmode="numeric" autocomplete="one-time-code"
+          placeholder="6-digit code" maxlength="8">
+      </div>
+      <div class="wowfield"><button id="btnAuth" class="wowbtn-red">Login</button><span id="authMsg" class="msg"></span></div>
+      <label class="wowcheck"><input type="checkbox" id="remember" checked> Remember Account Name</label>
     </div>
 
-    <div id="pane2" class="pane hidden">
-      <h2>Choose a realm</h2>
-      <div id="realmList" class="picklist"></div>
-      <div class="row"><button id="btnBack1" class="ghost">← Back</button><button id="btnChars" class="primary">Load characters</button><span id="realmMsg" class="msg"></span></div>
+    <div id="pane2" class="pane hidden wowrealm">
+      <div class="wowframe-title">Realm Selection</div>
+      <div class="realmhead"><span>Realm Name</span><span>Type</span><span>Characters</span><span>Population</span></div>
+      <div id="realmList" class="realmlist"></div>
+      <div class="row"><button id="btnBack1" class="wowbtn">Back</button><button id="btnChars" class="wowbtn-red">Okay</button><span id="realmMsg" class="msg"></span></div>
     </div>
 
-    <div id="pane3" class="pane hidden">
-      <h2>Choose a character</h2>
-      <div id="charList" class="picklist"></div>
-      <div class="row"><button id="btnBack2" class="ghost">← Back</button><button id="btnEnter" class="primary">Enter world</button><span id="charMsg" class="msg"></span></div>
+    <div id="pane3" class="pane hidden wowchars">
+      <div id="charRealm" class="wowchars-realm">–</div>
+      <div><button id="btnBack2" class="wowbtn-red small">Change Realm</button></div>
+      <div id="charList" class="charlist"></div>
+      <div class="row"><button id="btnEnter" class="wowbtn-red">Enter World</button><span id="charMsg" class="msg"></span></div>
     </div>
   </section>
 
-  <!-- ============ CHAT ============ -->
+  <!-- ============ CHAT (in-game style: frame left, menu right) ============ -->
   <section id="chatView" class="hidden chatlayout">
-    <aside class="side">
-      <div class="card idcard">
-        <div class="charname" id="whoChar">–</div>
-        <div class="muted" id="whoRealm">–</div>
-        <div class="badges"><span id="factionBadge" class="badge">–</span></div>
-        <button id="btnLogout" class="ghost danger">Log out</button>
-      </div>
-      <div class="card">
-        <button id="btnOptions" class="ghost" style="width:100%">⚙ Options</button>
-        <div id="optionsPanel" class="hidden">
-          <label style="margin-top:10px">Language
-            <select id="lang" title="Auto tries Universal first, falls back to your faction tongue if the server rejects it.">
-              <option value="auto" selected>Auto</option>
-              <option value="7">Common</option>
-              <option value="1">Orcish</option>
-              <option value="0">Univ.</option>
-            </select>
-          </label>
-          <h3 style="margin-top:12px">Channels</h3>
-          <label>Channel<input id="chanName" value="World"></label>
-          <label>Password<input id="chanPass" placeholder="optional"></label>
-          <div class="row wrap">
-            <button id="btnJoin" class="primary">Join</button>
-            <button id="btnLeave" class="ghost">Leave</button>
-            <button id="btnChanList" class="ghost">Members</button>
-          </div>
+    <section class="chatframe">
+      <div class="tabbar"><div id="tabs" class="tabs"></div><button id="btnAddTab" class="tabadd" title="New tab">+</button></div>
+      <div class="feedwrap">
+        <div id="feed"></div>
+        <div class="feednav">
+          <button id="btnUp" title="Scroll up">▲</button>
+          <button id="btnDown" title="Scroll down">▼</button>
         </div>
       </div>
-      <div class="card">
-        <h3>Who's online</h3>
-        <label>Name filter<input id="whoName" placeholder="part of a name"></label>
-        <div class="row"><button id="btnWho" class="ghost">Search</button></div>
-      </div>
-    </aside>
-    <section class="card chatmain">
-      <div id="feed"></div>
       <div class="composer">
         <select id="kind" title="Chat type">
           <option value="say">Say</option>
@@ -111,14 +86,57 @@
           <option value="whisper">Whisper</option>
           <option value="channel" selected>Channel</option>
         </select>
-        <input id="target" value="World" title="Whisper target / channel name">
+        <input id="target" value="" title="Whisper target" placeholder="Player name">
+        <select id="targetSel" title="Joined channels"></select>
         <input id="text" placeholder="Message…  (Enter sends, /join Name joins)" autocomplete="off">
         <button id="btnSend" class="primary">Send</button>
       </div>
     </section>
+    <aside class="gamemenu">
+      <div class="menutitle">Menu</div>
+      <div class="menuid">
+        <div class="charname" id="whoChar">–</div>
+        <div class="muted" id="whoRealm">–</div>
+      </div>
+      <button id="btnChanOpen" class="wowbtn-red">Channel</button>
+      <button id="btnLangOpen" class="wowbtn-red">Language: Auto</button>
+      <button id="btnWhoOpen" class="wowbtn-red">Who List</button>
+      <button id="btnLogout" class="wowbtn-red">Logout</button>
+    </aside>
   </section>
+
+  <div id="whoModal" class="hidden">
+    <div class="whobox">
+      <div class="wowframe-title">Who List</div>
+      <label>Name filter<input id="whoName" placeholder="part of a name"></label>
+      <div class="row"><button id="btnWho" class="wowbtn-red">Search</button><button id="btnWhoClose" class="wowbtn">Close</button><span id="whoMsg" class="msg"></span></div>
+      <div id="whoResults" class="whoresults hidden"></div>
+    </div>
+  </div>
+
+  <div id="chanModal" class="hidden">
+    <div class="whobox">
+      <div class="wowframe-title">Channel</div>
+      <label>Join<input id="chanName" placeholder="Channel name"></label>
+      <label>Password<input id="chanPass" placeholder="optional"></label>
+      <div class="row"><button id="btnJoin" class="wowbtn-red">Join</button></div>
+      <label>Joined<select id="chanJoined"></select></label>
+      <div class="row"><button id="btnLeave" class="wowbtn">Leave</button><button id="btnChanList" class="wowbtn">Members</button><span id="chanMsg" class="msg"></span></div>
+      <div id="chanMembers" class="whoresults hidden"></div>
+      <div class="row"><button id="btnChanClose" class="wowbtn">Close</button></div>
+    </div>
+  </div>
+
+  <div id="langModal" class="hidden">
+    <div class="whobox">
+      <div class="wowframe-title">Language</div>
+      <div id="langList" class="langlist"></div>
+      <div class="row"><button id="btnLangClose" class="wowbtn">Close</button></div>
+    </div>
+  </div>
 </main>
 
+<script src="icons.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

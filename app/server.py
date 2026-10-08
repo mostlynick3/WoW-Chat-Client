@@ -23,6 +23,7 @@ import sys
 from flask import Flask, jsonify, request, send_from_directory
 
 from .wow_client import WoWChatManager
+from wow.chat_defs import CLASS_COLORS, RACE_LANGUAGES, ZONE_NAMES, language_name
 
 if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
     BASE = sys._MEIPASS  # type: ignore[attr-defined]
@@ -32,6 +33,20 @@ WEB = os.path.join(BASE, "web")
 
 app = Flask(__name__)
 mgr = WoWChatManager()
+
+
+@app.get("/api/meta")
+def meta():
+    # Display maps (single source of truth for the UI).
+    return jsonify({
+        "zones": {str(k): v for k, v in ZONE_NAMES.items()},
+        "class_colors": {str(k): v for k, v in CLASS_COLORS.items()},
+        "realm_types": {"0": "Normal", "1": "PvP", "4": "Normal",
+                        "6": "RP", "8": "RPPvP"},
+        "race_languages": {str(r): list(l) for r, l in RACE_LANGUAGES.items()},
+        "language_names": {str(l): language_name(l) for l in
+                           {x for t in RACE_LANGUAGES.values() for x in t}},
+    })
 
 
 @app.get("/api/status")
@@ -61,6 +76,7 @@ def auth():
         auth_port=int(body.get("auth_port", 3724)),
         username=body.get("username", ""),
         password=body.get("password", ""),
+        token=str(body.get("token", "") or ""),
     )
     return jsonify(res)
 
@@ -123,9 +139,21 @@ def chanlist():
 def who():
     body = request.get_json(force=True) or {}
     allowed = ("name_sub", "zone_sub", "min_level", "max_level",
-               "race_mask", "class_mask", "stranger_only")
+               "race_mask", "class_mask")
     kw = {k: body[k] for k in allowed if k in body}
     return jsonify(mgr.who(**kw))
+
+
+@app.get("/api/who_result")
+def who_result():
+    """Latest /who answer for the Who modal (not the chat feed)."""
+    return jsonify(mgr.who_result())
+
+
+@app.get("/api/chan_result")
+def chan_result():
+    """Latest channel-member answer for the Channel modal."""
+    return jsonify(mgr.chan_result())
 
 
 @app.post("/api/logout")
@@ -147,8 +175,14 @@ def index():
 @app.get("/<path:path>")
 def static_files(path: str):
     # only serve known web assets, never arbitrary paths
-    if os.path.basename(path) in ("app.js", "style.css", "index.html"):
+    if os.path.basename(path) in ("app.js", "icons.js", "style.css",
+                                   "index.html", "favicon.ico"):
         return send_from_directory(WEB, os.path.basename(path))
+    if path.startswith("assets/"):
+        name = os.path.basename(path)
+        if name in ("slide-04.jpg", "MORPHEUS.ttf", "chromiecraft.png",
+                    "truewow.png", "risinggods.png"):
+            return send_from_directory(os.path.join(WEB, "assets"), name)
     return jsonify({"error": "not found"}), 404
 
 
