@@ -20,7 +20,7 @@ from wow.world_socket import parse_notification
 
 from app.wow_client import WoWChatManager
 from wow import net as netmod
-from wow.auth_socket import parse_realm_blob
+from wow.auth_socket import build_logon_challenge, parse_realm_blob
 from wow.opcodes import Opcode
 from wow.world_socket import (
     build_auth_session,
@@ -293,6 +293,27 @@ def _realm_entry(flags: int = 0) -> bytes:
 
 def _realm_blob(flags: int = 0) -> bytes:
     return _realm_entry(flags) + bytes([0x10, 0x00])
+
+
+class TestChallengePacket(unittest.TestCase):
+    def test_size_invariant(self):
+        # Server closes the connection with no reply unless
+        # size - 30 == I_len (AuthSession::HandleLogonChallenge).
+        import struct as _st
+        for name in ("METALLINOS5", "x", "a" * 16):
+            pkt = build_logon_challenge(name)
+            self.assertEqual(pkt[0], 0x00)
+            size = _st.unpack_from("<H", pkt, 2)[0]
+            self.assertEqual(len(pkt), 4 + size)
+            body = pkt[4:]
+            self.assertEqual(size, len(body))
+            i_len = body[29]
+            self.assertEqual(size - 30, i_len)
+            self.assertEqual(body[30:30 + i_len],
+                             name.upper().encode("ascii"))
+            # "metallinos5" is 11 chars -> 45 bytes total, not 46
+            if name == "METALLINOS5":
+                self.assertEqual(len(pkt), 45)
 
 
 class TestRealmBlob(unittest.TestCase):

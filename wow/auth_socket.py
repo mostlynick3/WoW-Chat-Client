@@ -42,6 +42,27 @@ def _auth_err(code: int) -> str:
     return AUTH_ERRORS.get(code, f"code={code:#04x}")
 
 
+def build_logon_challenge(username: str, build: int = BUILD,
+                          platform: str = "x86", os_: str = "Win",
+                          locale: str = "enUS") -> bytes:
+    """CMD_AUTH_LOGON_CHALLENGE packet. Must satisfy the server check
+    (AuthSession::HandleLogonChallenge): size - 30 == I_len, else the
+    server closes the connection without a reply."""
+    uname = srp.upper_latin(username)
+    body = (b"WoW\x00"
+            + struct.pack("<BBB", 3, 3, 5) + struct.pack("<H", build)
+            + platform.encode("ascii")[:4][::-1].ljust(4, b"\x00")
+            + os_.encode("ascii")[:4][::-1].ljust(4, b"\x00")
+            + locale.encode("ascii")[:4][::-1].ljust(4, b"\x00")
+            + struct.pack("<I", 0)  # timezone bias
+            + struct.pack("<I", 0)  # client ip
+            + bytes([len(uname)])
+            + uname.encode("ascii"))
+    assert len(body) - 30 == len(uname), "challenge size invariant broken"
+    return (bytes([CMD_AUTH_LOGON_CHALLENGE, 0])
+            + struct.pack("<H", len(body)) + body)
+
+
 @dataclass
 class RealmEntry:
     id: int
@@ -104,30 +125,7 @@ class AuthClient:
         assert self.sock
         sock = self.sock
         uname = srp.upper_latin(username)
-
-        game = b"WoW\x00"
-        ver = struct.pack("<BBB", 3, 3, 5) + struct.pack("<H", build)
-        plat = platform.encode("ascii")[:4][::-1].ljust(4, b"\x00")
-        osb = os_.encode("ascii")[:4][::-1].ljust(4, b"\x00")
-        # locale sent reversed on wire in most docs ("suNE" for enUS)
-        loc = locale.encode("ascii")[:4][::-1].ljust(4, b"\x00")
-        pkt = (
-            bytes([CMD_AUTH_LOGON_CHALLENGE, 0])
-            + struct.pack("<H", 4 + 4 + 4 + 4 + 4 + 4 + 4 + len(uname) + 4 + 2 + 1 + len(uname))
-            + game
-            + ver
-            + plat
-            + osb
-            + loc
-            + struct.pack("<I", 0)  # timezone bias
-            + struct.pack("<I", 0)  # client ip
-            + bytes([len(uname)])
-            + uname.encode("ascii")
-        )
-        # size field = remaining bytes after initial 3 (cmd+err+size)
-        # recompute defensively:
-        body = pkt[3:]
-        pkt = pkt[:1] + pkt[1:2] + struct.pack("<H", len(body)) + body
+        pkt = build_logon_challenge(username, build, platform, os_, locale)
         sock.sendall(pkt)
         self._log(f"auth: logon challenge sent for '{uname}' "
                   f"({len(pkt)} bytes), awaiting reply ...")
