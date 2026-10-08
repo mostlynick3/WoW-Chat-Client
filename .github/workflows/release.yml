@@ -75,6 +75,7 @@ jobs:
             --exclude-module scipy --exclude-module matplotlib \
             --exclude-module pygame --exclude-module PIL \
             --exclude-module tkinter \
+            --exclude-module jnius --exclude-module cryptography \
             $ICON_ARG \
             --additional-hooks-dir build/pyinstaller-hooks \
             --add-data "web${{ matrix.sep }}web" desktop.py

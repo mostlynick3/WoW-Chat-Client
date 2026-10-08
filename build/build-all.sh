@@ -25,7 +25,7 @@ DESKTOP_EXCLUDES="--exclude-module PyQt5 --exclude-module PyQt6 \
   --exclude-module PySide2 --exclude-module PySide6 --exclude-module wx \
   --exclude-module numpy --exclude-module pandas --exclude-module scipy \
   --exclude-module matplotlib --exclude-module pygame --exclude-module PIL \
-  --exclude-module tkinter"
+  --exclude-module tkinter --exclude-module jnius --exclude-module cryptography"
 # Binary icon (ELF binaries carry no icon; Linux uses the AppImage +
 # .desktop entry instead — see build/build-appimage.sh).
 case "$(uname -s)" in
