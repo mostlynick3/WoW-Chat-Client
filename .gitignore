@@ -19,3 +19,9 @@ app/build_info.py
 # local-only tests, never committed
 tests/
 .DS_Store
+# Android local build outputs (Gradle wrapper itself is committed)
+local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/

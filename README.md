@@ -1,143 +1,70 @@
-# ygg-chat-client
+# <img src="build/appimage/WoW-Chat-Client.png" width="56"> WoW Chat Client
 
-Standalone chat client for WotLK 3.3.5a (build 12340) private servers
-(TrinityCore / AzerothCore / MaNGOS-compatible).
+Chat with your characters on any WotLK 3.3.5a private server — no game
+client needed. Log in as a real character and talk in guild, party,
+channels and whispers, from the app or any browser.
 
-- **Full character auth**: Logs in as a normal character using the real game protocol
-  (authserver SRP6 + worldserver `CMSG_AUTH_SESSION`, session-key ARC4 crypt).
-  No WoW client needed. The character appears in-game / in who lists.
-- **Web hostable**: Can be web hosted and run locally or remotely at your will (`run.py` -> http://127.0.0.1:5950).
-- **Desktop app**: Every commit creates a new pre-compield executable for macOS / Windows / Linux.
-
-Opcodes / chat types were cross-checked against
-`yggdrasilcore` (`Opcodes.h`, `SharedDefines.h` `ChatMsg`,
-`WorldSocket.cpp` digest + `AuthCrypt`, `ChatHandler.cpp`,
-`ChannelHandler.cpp`, `Chat.cpp` `BuildChatPacket`).
-
-## Quick start
-Choose option 1 or 2 below:
-
-1. Use the direct app for your OS [here](https://github.com/mostlynick3/WoW-Chat-Client/releases/tag/continuous). We recommend AppImage
-for all Linux distros.
-Alternatively, you may download the source code [here](https://github.com/mostlynick3/WoW-Chat-Client/archive/refs/heads/main.zip) and run the below commands directly for CLI control.
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python3 desktop.py
-```
-
-2. Use the plug-and-play Linux web server from [here](https://github.com/mostlynick3/WoW-Chat-Client/releases/tag/continuous), or run the web server directly on a system of your choice by the below instructions, then connect to it on port 5950 from any browser.
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp config.example.json config.json   # edit host/ports
-python3 run.py              
-# open http://127.0.0.1:5950 from any browser
-```
-
-## How does it work?
-Login is a 3-step wizard: **account** -> **realm** -> **character** (picked with level/race/class/faction
-shown) -> enter world, exactly like a stock client.
 <p align="center">
-<img width="1100" height="778" alt="image" src="https://github.com/user-attachments/assets/5148f0d0-e7f0-4b1d-9f74-edc687583c3d" />
-<img width="599" height="360" alt="image" src="https://github.com/user-attachments/assets/54de7908-4864-4f55-9986-f0dde10e5e17" />
-<img width="1117" height="573" alt="image" src="https://github.com/user-attachments/assets/4f155681-3add-4f4e-8260-4d66fe0f5052" />
+<a href="https://github.com/mostlynick3/WoW-Chat-Client/releases/download/continuous/wow-chat-desktop-windows.exe"><img src="docs/icons/windows8.svg" width="48" alt="Windows"></a>&nbsp;&nbsp;
+<a href="https://github.com/mostlynick3/WoW-Chat-Client/releases/download/continuous/WoW-Chat-Client-linux-x86_64.AppImage"><img src="docs/icons/linux.svg" width="48" alt="Linux"></a>&nbsp;&nbsp;
+<a href="https://github.com/mostlynick3/WoW-Chat-Client/releases/download/continuous/wow-chat-desktop-macos"><img src="docs/icons/apple.svg" width="48" alt="macOS"></a>&nbsp;&nbsp;
+<a href="https://github.com/mostlynick3/WoW-Chat-Client/releases/download/continuous/wow-chat-android.apk"><img src="docs/icons/android.svg" width="48" alt="Android"></a>&nbsp;&nbsp;
+<a href="#run-it-on-your-own-server"><img src="docs/icons/apache.svg" width="48" alt="Self-hosted web"></a>
 </p>
 
+Click an icon above for the latest build (rebuilt on every commit), or
+[see all files](https://github.com/mostlynick3/WoW-Chat-Client/releases/tag/continuous).
 
-## If auth fails
+## What you can do
 
-Every step is logged to browser JS console. For full debug, run the web
-server and open it in a browser of your choice. Typical causes for auth fail:
+- Log in as any of your characters: account → realm → character, just
+  like the game client.
+- Chat everywhere: Say, Yell, Party, Guild, Officer, Raid, Battleground,
+  Whisper, and custom channels.
+- Speak your faction tongue automatically (Common / Orcish by race), or
+  force another tongue.
+- Join and leave channels, see who's in them, `/who` search across the
+  server.
+- Works out of the box on Yggdrasil, TrueWoW, ChromieCraft and Rising
+  Gods — or any 3.3.5a server via manual address entry.
 
-- `cannot resolve '...'` / DNS timeout — wrong hostname or no DNS.
-- `connection refused ... not listening there?` — wrong host/port or
-  the authserver is down.
-- `closed the connection while: logon-challenge reply` — the server
-  hung up without answering (packet rejected, IP-filtered, or not a
-  3.3.5a authserver at all).
-- `WOW_FAIL_UNKNOWN_ACCOUNT` on the challenge — account name doesn't
-  exist. The same code on the **proof** step means the password is
-  wrong (each login attempt with a wrong password is also logged
-  server-side, and repeated failures can trigger `WrongPass` IP bans —
-  check `authserver.conf`).
-- `WOW_FAIL_VERSION_INVALID` — build rejected (`AcceptedClientBuilds`
-  server-side, or `StrictVersionCheck` with a zero exe CRC).
-- `... timed out after Ns` — the server stalled mid-handshake; phases
-  have hard deadlines so a hung server can never hang the UI forever.
+<p align="center">
+<img width="1100" height="778" alt="Login, realm and character screens" src="https://github.com/user-attachments/assets/5148f0d0-e7f0-4b1d-9f74-edc687583c3d" />
+<img width="599" height="360" alt="Chat window" src="https://github.com/user-attachments/assets/54de7908-4864-4f55-9986-f0dde10e5e17" />
+<img width="1117" height="573" alt="Channel and who list" src="https://github.com/user-attachments/assets/4f155681-3add-4f4e-8260-4d66fe0f5052" />
+</p>
 
-## What it does (v1)
+## Run it on your own server
 
-- Auth: account login (SRP6), realm list select, world `AUTH_SESSION`,
-  `CHAR_ENUM` -> character select, `PLAYER_LOGIN`.
-- Chat send: Say / Yell / Emote / Party / Guild / Officer / Raid /
-  RaidWarning / Battleground / Whisper / Channel.
-  Language defaults to **Auto: your faction tongue** (Common 7 for
-  Alliance, Orcish 1 for Horde, derived from your character's race).
-  The server logs a hacking-attempt for client-sent Universal, so Auto
-  never sends it; you can still force Universal from the dropdown, and a
-  forced Universal rejected with stock `SMSG_NOTIFICATION` "Unknown
-  language" (`0x1CB`, acore_string 805) is auto-resent once in your
-  faction tongue. The verdict is shown in the header
-  (`universal: yes/no`).
-- Chat receive: `SMSG_MESSAGECHAT` + `SMSG_GM_MESSAGECHAT` parsed per
-  `BuildChatPacket` (full u64 guids, GM/channel/monster variants).
-  `LANG_ADDON` traffic (anticheat/addon pings) is filtered out of the
-  feed like a stock client. Player guids resolve to names in the
-  background via `CMSG_NAME_QUERY`.
-- Channels: join (`channel+password`), leave, list members,
-  channel notices (`SMSG_CHANNEL_NOTIFY`).
-- Roster: `/who` (`CMSG_WHO`/`SMSG_WHO`), name lookup.
-- Logout: `CMSG_LOGOUT_REQUEST` + clean socket close; backend also
-  supports full disconnect.
-- Keepalive: `CMSG_PING` every ~30s, `CMSG_KEEP_ALIVE` handling.
+Prefer hosting it yourself? Grab `wow-chat-server-linux` from the
+release, or run from source on any machine and open
+`http://<your-server>:5950` from any browser — desktop or phone.
 
-## Layout
-
-```
-run.py            local web server entry
-desktop.py        desktop wrapper entry (browser/pywebview)
-config.example.json
-app/server.py     Flask REST API (polling, no WS dependency)
-app/wow_client.py high-level WoW connection manager (threaded)
-wow/srp.py        SRP6 client (WoW variant, k=3, SHA1Interleave)
-wow/crypt.py      ARC4-drop1024 world crypt (AuthCrypt-compatible)
-wow/protocol.py   packet reader/writer helpers (C-string, packed GUID)
-wow/opcodes.py    opcodes pinned to yggdrasilcore Opcodes.h
-wow/chat_defs.py  ChatMsg + languages + channel-notify enums
-wow/auth_socket.py  authserver (3724) login + realm list
-wow/world_socket.py worldserver login + chat/channel/who/logout loop
-web/              static UI (index.html/app.js/style.css)
-tests/            offline unit tests (no server needed)
-build/            PyInstaller build scripts
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python3 desktop.py   # app window — or: python3 run.py  (browser UI on :5950)
 ```
 
-## Config
+Your account password is only ever used for the login handshake, kept in
+memory, and wiped on logout — never written to disk.
 
-See `config.example.json`. Per-login you can override host/ports/realm/
-character from the UI; config file only provides defaults.
+## If login fails
 
-## Security notes
-
-- Credentials live only in memory; never written to disk by the app.
-- Session key `K` is kept in-process and zeroed on logout/disconnect.
-- Use a dedicated low-privilege account; the client identifies as a
-  normal `Win`/`x86` 3.3.5a client.
-- Some servers enforce client CRC / Warden / IP lock / GEO lock; if
-  login fails with `AUTH_FAILED` check those server-side settings.
+- `cannot resolve ...` — wrong hostname or no DNS.
+- `connection refused` — wrong host/port, or the authserver is down.
+- Unknown account vs wrong password: a bad name fails fast, a bad
+  password fails at the proof step. Note some servers answer both the
+  same way — and repeated wrong passwords can trigger `WrongPass` IP
+  bans server-side.
+- `WOW_FAIL_VERSION_INVALID` — the server rejects this client build
+  (`AcceptedClientBuilds` / `StrictVersionCheck` server-side).
 
 ## Limitations
 
 - Chat-only: no movement, combat, spells, or world rendering.
-- See `README` sections in `app/` + `wow/` for packet-level details.
-
-## Releases (CI)
-
-Every push to `main` runs `.github/workflows/release.yml`: PyInstaller
-builds the server binary (Linux) plus the desktop binaries (Linux
-AppImage, Windows, macOS) and publishes them on the rolling **`continuous`**
-prerelease. The distributed binaries are the desktop ones; the server
-binary is for headless use.
+- Say/Yell only arrive if your character is standing near the speaker,
+  same as in-game.
 
 ## License
 

@@ -121,9 +121,40 @@ jobs:
           path: WoW-Chat-Client-linux-x86_64.AppImage
           if-no-files-found: error
 
+  build-apk:
+    name: apk (android)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: refresh bundled python copy
+        shell: bash
+        run: bash build/sync-android.sh
+      - name: build debug APK
+        shell: bash
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: stage APK
+        shell: bash
+        run: |
+          mkdir -p apk-out
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+            apk-out/wow-chat-android.apk
+          ls -la apk-out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-apk
+          path: apk-out/
+          if-no-files-found: error
+
   release:
     name: publish continuous release
-    needs: [build, appimage]
+    needs: [build, appimage, build-apk]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -163,6 +194,7 @@ jobs:
           - \`WoW-Chat-Client-linux-x86_64.AppImage\` (Linux)
           - \`wow-chat-desktop-windows.exe\`
           - \`wow-chat-desktop-macos\` (Apple Silicon runner; Intel Macs need Rosetta)
+          - \`wow-chat-android.apk\` (Android: allow unknown sources to install)
 
           **Server (headless)** — serves the browser UI on port 5950:
           - \`wow-chat-server-linux\`
