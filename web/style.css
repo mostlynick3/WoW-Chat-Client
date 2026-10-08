@@ -260,6 +260,8 @@ button:disabled { opacity: .5; cursor: wait; }
 .gamemenu .wowbtn-red { width: 100%; padding: 7px 10px; font-size: 15px; }
 /* update banner on the login page (hidden unless an update is pending) */
 #updateBox a { text-decoration: none; display: inline-block; }
+/* same breathing room above it as the error line reserves elsewhere */
+#updateBox.wowfield { margin-top: calc(12px + 1.5em); }
 
 /* popups */
 #whoModal, #chanModal, #langModal { position: fixed; inset: 0; background: rgba(0, 0, 0, .65);
