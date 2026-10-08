@@ -37,8 +37,9 @@ always comes from the realm list entry.
 
 ## If auth fails
 
-Every step is logged: watch the **Debug log** box under the login form
-(same lines go to the terminal as `[ygg] ...`). Typical causes:
+Every step is logged: open the browser console (F12) and watch the
+`[ygg ...]` lines (same lines go to the terminal as `[ygg] ...`).
+Typical causes:
 
 - `cannot resolve '...'` / DNS timeout — wrong hostname or no DNS.
 - `connection refused ... not listening there?` — wrong host/port or
