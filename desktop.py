@@ -43,6 +43,25 @@ def _have_window_backend() -> bool:
     return any(os.path.exists(p) for p in _WEBKIT_HELPERS)
 
 
+def _restore_system_lib_path():
+    """Undo PyInstaller's LD_LIBRARY_PATH override before opening the
+    window (frozen Linux only; no-op otherwise).
+
+    The bootloader points LD_LIBRARY_PATH at the bundle so the UI
+    process finds its bundled libs — but WebKitGTK spawns its helper
+    processes (WebKitWebProcess, ...) from fixed SYSTEM paths, and those
+    inherit our environment. With the bundle dir first, the helpers mix
+    bundled libs from the build distro with system helpers from the host
+    distro and die silently (permanently blank page). The UI process has
+    already loaded what it needs, so restoring the original path makes
+    UI + helpers use one consistent system set.
+    """
+    orig = os.environ.get("LD_LIBRARY_PATH_ORIG")
+    if orig is None:
+        return  # not frozen (source run): leave the environment alone
+    os.environ["LD_LIBRARY_PATH"] = orig
+
+
 def main():
     cfg = load_defaults()
     host = os.environ.get("YGG_CHAT_HOST", cfg.get("http_host", "127.0.0.1"))
@@ -56,6 +75,7 @@ def main():
               "the app window); opening system browser instead")
         _serve_forever_browser(url)
         return
+    _restore_system_lib_path()
     try:
         import webview  # type: ignore
     except ImportError:
