@@ -3,13 +3,11 @@
 Standalone chat client for WotLK 3.3.5a (build 12340) private servers
 (TrinityCore / AzerothCore / MaNGOS-compatible).
 
-- Logs in **directly as a character** using the real game protocol
+- **Full character auth**: Logs in as a normal character using the real game protocol
   (authserver SRP6 + worldserver `CMSG_AUTH_SESSION`, session-key ARC4 crypt).
   No WoW client needed. The character appears in-game / in who lists.
-- **Web UI** served locally (`run.py` -> http://127.0.0.1:5950).
-- **Desktop wrapper** (`desktop.py`) starts the same backend and opens the
-  system browser (or `pywebview` window if installed), freezable with
-  PyInstaller to a single executable for macOS / Windows / Linux.
+- **Web hostable**: Can be web hosted and run locally or remotely at your will (`run.py` -> http://127.0.0.1:5950).
+- **Desktop app**: Every commit creates a new pre-compield executable for macOS / Windows / Linux.
 
 Opcodes / chat types were cross-checked against
 `yggdrasilcore` (`Opcodes.h`, `SharedDefines.h` `ChatMsg`,
@@ -17,29 +15,38 @@ Opcodes / chat types were cross-checked against
 `ChannelHandler.cpp`, `Chat.cpp` `BuildChatPacket`).
 
 ## Quick start
+Choose option 1 or 2 below:
 
+1. Use the direct app for your OS [here](https://github.com/mostlynick3/WoW-Chat-Client/releases/tag/continuous). We recommend AppImage
+for all Linux distros.
+Alternatively, you may download the source code [here](https://github.com/mostlynick3/WoW-Chat-Client/archive/refs/heads/main.zip) and run the below commands directly for CLI control.
 ```bash
-cd ygg-chat-client
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp config.example.json config.json   # edit host/ports
-python3 run.py                        # open http://127.0.0.1:5950
-# or:
 python3 desktop.py
 ```
 
-Login is a 3-step wizard: **account** (pick a server — Yggdrasil by
-default, plus TrueWoW, ChromieCraft, Rising Gods, or Manual entry — then
-credentials) -> **realm** (picked from the live auth response, with
-host/port shown) -> **character** (picked with level/race/class/faction
-shown) -> enter world, exactly like a stock client: the world address
-always comes from the realm list entry.
+2. Use the plug-and-play Linux web server from [here](https://github.com/mostlynick3/WoW-Chat-Client/releases/tag/continuous), or run the web server directly on a system of your choice by the below instructions, then connect to it on port 5950 from any browser.
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp config.example.json config.json   # edit host/ports
+python3 run.py              
+# open http://127.0.0.1:5950 from any browser
+```
+
+## How does it work?
+Login is a 3-step wizard: **account** -> **realm** -> **character** (picked with level/race/class/faction
+shown) -> enter world, exactly like a stock client.
+<img width="1100" height="778" alt="image" src="https://github.com/user-attachments/assets/5148f0d0-e7f0-4b1d-9f74-edc687583c3d" />
+<img width="599" height="360" alt="image" src="https://github.com/user-attachments/assets/54de7908-4864-4f55-9986-f0dde10e5e17" />
+<img width="1117" height="573" alt="image" src="https://github.com/user-attachments/assets/4f155681-3add-4f4e-8260-4d66fe0f5052" />
+
 
 ## If auth fails
 
-Every step is logged: open the browser console (F12) and watch the
-`[ygg ...]` lines (same lines go to the terminal as `[ygg] ...`).
-Typical causes:
+Every step is logged to browser JS console. For full debug, run the web
+server and open it in a browser of your choice. Typical causes for auth fail:
 
 - `cannot resolve '...'` / DNS timeout — wrong hostname or no DNS.
 - `connection refused ... not listening there?` — wrong host/port or
@@ -120,8 +127,6 @@ character from the UI; config file only provides defaults.
 ## Limitations
 
 - Chat-only: no movement, combat, spells, or world rendering.
-- `SAY`/`YELL` are proximity-based server-side; you only *receive* them
-  if the character is near the speaker (same as in-game).
 - See `README` sections in `app/` + `wow/` for packet-level details.
 
 ## Releases (CI)
@@ -129,10 +134,8 @@ character from the UI; config file only provides defaults.
 Every push to `main` runs `.github/workflows/release.yml`: PyInstaller
 builds the server binary (Linux) plus the desktop binaries (Linux,
 Windows, macOS) and publishes them on the rolling **`continuous`**
-prerelease. Release notes are generated from the commits since the
-previous build. Binaries are never stored in the repo (`dist/` is
-gitignored) — download them from the release page. The distributed
-binaries are the desktop ones; the server binary is for headless use.
+prerelease. The distributed binaries are the desktop ones; the server
+binary is for headless use.
 
 ## License
 
@@ -148,6 +151,5 @@ All graphics and artwork bundled or referenced by this client are the
 property of their respective owners. This repository lays no claim to
 copyright over Blizzard Entertainment material, including World of
 Warcraft, nor over the intellectual property or graphics of any of the
-servers included in the server list (Yggdrasil, TrueWoW, ChromieCraft,
-Rising Gods). Server logos and artwork are bundled locally for display
-in the login screen only.
+servers included in the server list. Server logos and artwork are bundled
+locally for display in the login screen only.
