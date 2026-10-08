@@ -24,8 +24,21 @@
     <div id="pane1" class="pane">
       <h2>Connect to your server</h2>
       <div class="grid2">
-        <label>Auth host<input id="authHost" value="127.0.0.1" autocomplete="off"></label>
+        <label class="span2">Server
+          <select id="serverPick">
+            <option value="yggdrasil" selected>Yggdrasil</option>
+            <option value="truewow">TrueWoW</option>
+            <option value="chromiecraft">ChromieCraft</option>
+            <option value="risinggods">Rising Gods</option>
+            <option value="manual">Manual entry…</option>
+          </select>
+        </label>
+      </div>
+      <div id="manualBox" class="grid2 hidden" style="margin-top:10px">
+        <label>Auth address<input id="authHost" placeholder="logon.example.com" autocomplete="off"></label>
         <label>Auth port<input id="authPort" value="3724" inputmode="numeric"></label>
+      </div>
+      <div class="grid2" style="margin-top:10px">
         <label>Account<input id="username" autocomplete="username"></label>
         <label>Password<input id="password" type="password" autocomplete="current-password"></label>
       </div>

@@ -12,6 +12,37 @@ const CLASSES = { 1: "Warrior", 2: "Paladin", 3: "Hunter", 4: "Rogue", 5: "Pries
 const ALLY_RACES = new Set([1, 3, 4, 7, 11]);
 const factionOf = (r) => ALLY_RACES.has(r) ? "alliance" : "horde";
 
+/* preset servers (auth port 3724 unless overridden via Manual entry) */
+const SERVERS = {
+  yggdrasil: { label: "Yggdrasil", host: "logon.yggdrasilwow.com", port: 3724 },
+  truewow: { label: "TrueWoW", host: "login.truewow.org", port: 3724 },
+  chromiecraft: { label: "ChromieCraft", host: "logon.chromiecraft.com", port: 3724 },
+  risinggods: { label: "Rising Gods", host: "logon.rising-gods.de", port: 3724 },
+};
+function selectedServer() {
+  const v = $("serverPick").value;
+  if (v === "manual") {
+    return { label: "Custom",
+      host: $("authHost").value.trim(),
+      port: +$("authPort").value || 3724 };
+  }
+  return SERVERS[v] || SERVERS.yggdrasil;
+}
+$("serverPick").addEventListener("change", () => {
+  const manual = $("serverPick").value === "manual";
+  $("manualBox").classList.toggle("hidden", !manual);
+  try { localStorage.setItem("ygg_server", $("serverPick").value); } catch { }
+});
+try {
+  const last = localStorage.getItem("ygg_server");
+  if (last && (SERVERS[last] || last === "manual")) {
+    $("serverPick").value = last;
+    $("manualBox").classList.toggle("hidden", last !== "manual");
+  }
+  const lastUser = localStorage.getItem("ygg_user");
+  if (lastUser) $("username").value = lastUser;
+} catch { }
+
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {}
     : { method: "POST", headers: { "Content-Type": "application/json" },
@@ -50,15 +81,23 @@ function showChat() {
 $("btnAuth").onclick = async () => {
   const btn = $("btnAuth"), msg = $("authMsg");
   msg.textContent = "";
+  const srv = selectedServer();
+  if (!srv.host) { msg.textContent = "Enter an auth address."; return; }
+  const user = $("username").value.trim();
+  if (!user) { msg.textContent = "Enter your account name."; return; }
   busy(btn, true, "Connecting…");
   try {
     const r = await api("/api/auth", {
-      auth_host: $("authHost").value.trim() || "127.0.0.1",
-      auth_port: +$("authPort").value || 3724,
-      username: $("username").value.trim(),
+      auth_host: srv.host,
+      auth_port: srv.port,
+      username: user,
       password: $("password").value,
     });
     $("password").value = "";
+    try {
+      localStorage.setItem("ygg_server", $("serverPick").value);
+      localStorage.setItem("ygg_user", user);
+    } catch { }
     if (!r.ok) { msg.textContent = "Failed: " + r.error; return; }
     renderRealms(r.realms);
     gotoStep(2);

@@ -28,11 +28,12 @@ python3 run.py                        # open http://127.0.0.1:5950
 python3 desktop.py
 ```
 
-Login is a 3-step wizard: **account** (auth host/port + credentials) ->
-**realm** (picked from the live auth response, with host/port shown) ->
-**character** (picked with level/race/class/faction shown) -> enter world,
-exactly like a stock client: the world address always comes from the
-realm list entry.
+Login is a 3-step wizard: **account** (pick a server — Yggdrasil by
+default, plus TrueWoW, ChromieCraft, Rising Gods, or Manual entry — then
+credentials) -> **realm** (picked from the live auth response, with
+host/port shown) -> **character** (picked with level/race/class/faction
+shown) -> enter world, exactly like a stock client: the world address
+always comes from the realm list entry.
 
 ## What it does (v1)
 
