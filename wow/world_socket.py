@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 
 from .chat_defs import CHAT_TYPE_NAMES, ChannelNotify
 from .crypt import WorldCrypt
+from . import net as netmod
 from .opcodes import Opcode
 from .protocol import Reader, Writer
 
@@ -112,12 +113,22 @@ class WorldClient:
         self.server_seed: bytes = b"\x00\x00\x00\x00"
         self.auth_ok = False
         self._lock = threading.Lock()
+        self.log = None  # set by manager: log(str) -> None
+
+    def _log(self, msg: str):
+        try:
+            if self.log:
+                self.log(msg)
+        except Exception:
+            pass
 
     # -- connect / login --------------------------------------------
-    def connect(self, host: str, port: int, timeout: float = 15.0):
+    def connect(self, host: str, port: int, timeout: float = 8.0):
         self.close()
         self._stop.clear()
-        self.sock = socket.create_connection((host, port), timeout)
+        self._log(f"world: connecting to {host}:{port} ...")
+        self.sock = netmod.connect_tcp(host, port, timeout,
+                                       lambda m: self._log(m))
         self.sock.settimeout(90.0)
         self._read_challenge()
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
@@ -132,6 +143,7 @@ class WorldClient:
         r.u32()  # unk (1)
         self.server_seed = r.raw(4)
         # remaining 32 random bytes ignored
+        self._log("world: auth challenge received, sending AUTH_SESSION ...")
 
     def login(self, account: str, K: bytes, realm_id: int,
               client_seed: int | None = None,
@@ -156,11 +168,16 @@ class WorldClient:
             self.auth_ok = True
             break
         if not self.auth_ok:
-            raise TimeoutError("no SMSG_AUTH_RESPONSE")
+            raise TimeoutError("no SMSG_AUTH_RESPONSE "
+                               f"(>{wait_auth:.0f}s, wrong session key?)")
+        self._log("world: AUTH_SESSION accepted")
         self.request_char_enum()
         t0 = time.time()
         while time.time() - t0 < wait_chars:
             if self.characters:
+                self._log("world: got "
+                          f"{len(self.characters)} character(s): "
+                          + ", ".join(c.name for c in self.characters))
                 return
             time.sleep(0.1)
         raise TimeoutError("no SMSG_CHAR_ENUM (empty account or wrong realm?)")

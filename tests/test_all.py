@@ -19,6 +19,8 @@ from wow.chat_defs import (
 from wow.world_socket import parse_notification
 
 from app.wow_client import WoWChatManager
+from wow import net as netmod
+from wow.auth_socket import parse_realm_blob
 from wow.opcodes import Opcode
 from wow.world_socket import (
     build_auth_session,
@@ -63,6 +65,14 @@ class TestCrypt(unittest.TestCase):
 class TestSRP(unittest.TestCase):
     def test_interleave_length(self):
         self.assertEqual(len(srp.interleave(bytes(32))), 40)
+
+    def test_x_is_little_endian_like_server(self):
+        # Server BigNumber(byte-array) defaults to littleEndian=true.
+        import hashlib as _hl
+        salt = bytes(range(32))
+        d = _hl.sha1(salt + _hl.sha1(b"U:P").digest()).digest()
+        self.assertEqual(srp.compute_x(salt, "u", "p"),
+                         int.from_bytes(d, "little"))
 
     def test_known_vector_self_consistent(self):
         # fixed inputs -> deterministic M1/M2, no crash
@@ -181,7 +191,7 @@ class TestUniversalProbe(unittest.TestCase):
 
 
 class FakeAuthClient:
-    def __init__(self, host, port=3724, timeout=15.0):
+    def __init__(self, host, port=3724, timeout=8.0, log=None):
         self.session_key = None
         self.closed = False
 
@@ -270,6 +280,51 @@ class TestLoginWizard(unittest.TestCase):
         m.fetch_realms("h", 3724, "user", "right")
         r = m.fetch_characters(99)
         self.assertFalse(r["ok"])
+
+
+def _realm_entry(flags: int = 0) -> bytes:
+    import struct as _st
+    e = bytes([1, 0, flags]) + b"Azeroth\x00" + b"10.0.0.5:8085\x00"
+    e += _st.pack("<f", 0.5) + bytes([3, 14, 1])
+    if flags & 0x04:
+        e += bytes([3, 3, 5]) + _st.pack("<H", 12340)
+    return e
+
+
+def _realm_blob(flags: int = 0) -> bytes:
+    return _realm_entry(flags) + bytes([0x10, 0x00])
+
+
+class TestRealmBlob(unittest.TestCase):
+    def test_plain_entry(self):
+        out = parse_realm_blob(_realm_blob(), 1)
+        self.assertEqual([(r.id, r.name, r.address) for r in out],
+                         [(1, "Azeroth", "10.0.0.5:8085")])
+
+    def test_specifybuild_extra_bytes_skipped(self):
+        blob = _realm_entry(0x04) + _realm_entry() + bytes([0x10, 0x00])
+        out = parse_realm_blob(blob, 2)
+        self.assertEqual([r.name for r in out], ["Azeroth", "Azeroth"])
+
+
+class TestNet(unittest.TestCase):
+    def test_literal_ip_no_dns(self):
+        self.assertEqual(netmod.resolve_ipv4("127.0.0.1"), "127.0.0.1")
+
+    def test_unresolvable_host_fast_error(self):
+        with self.assertRaises((ConnectionError, TimeoutError)):
+            netmod.resolve_ipv4("nonexistent.invalid", timeout=5)
+
+
+class TestGuarded(unittest.TestCase):
+    def test_deadline(self):
+        import time as _t
+        with self.assertRaises(TimeoutError):
+            WoWChatManager._run_guarded(lambda: _t.sleep(5), 0.2, "test op")
+
+    def test_passthrough(self):
+        self.assertEqual(
+            WoWChatManager._run_guarded(lambda: 42, 5.0, "test op"), 42)
 
 
 class TestPackets(unittest.TestCase):

@@ -10,6 +10,7 @@ session keys are zeroed on disconnect.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import queue
 import threading
 import time
@@ -65,6 +66,41 @@ class WoWChatManager:
         self._session_key: bytes | None = None
         self._account_upper = ""
         self._realm_id = 0
+        # Ring buffer of debug lines (also printed to stderr).
+        self.debug_log: list[dict] = []
+
+    def _dbg(self, msg: str):
+        line = {"ts": time.time(), "msg": str(msg)}
+        with self._lock:
+            self.debug_log.append(line)
+            if len(self.debug_log) > 300:
+                del self.debug_log[: len(self.debug_log) - 300]
+        print(f"[ygg] {line['msg']}", flush=True)
+
+    def debug_tail(self, n: int = 40) -> list[dict]:
+        with self._lock:
+            return list(self.debug_log[-n:])
+
+    @staticmethod
+    def _run_guarded(fn, secs: float, label: str, close=None):
+        """Run blocking network setup with a hard deadline so a stalled
+        server can never hang the request forever. Abandoned worker
+        threads die on their own socket timeouts."""
+        ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        fut = ex.submit(fn)
+        try:
+            return fut.result(timeout=secs)
+        except concurrent.futures.TimeoutError:
+            if close is not None:
+                try:
+                    close()
+                except Exception:
+                    pass
+            raise TimeoutError(
+                f"{label} timed out after {secs:.0f}s — server stalled "
+                f"mid-handshake (firewall or overloaded server?)")
+        finally:
+            ex.shutdown(wait=False)
 
     # -- helpers ------------------------------------------------------
     def _push_line(self, line: ChatLine):
@@ -112,10 +148,14 @@ class WoWChatManager:
         self.state = "auth"
         self.account = username
         self.status = f"authenticating {username}@{auth_host}:{auth_port} ..."
-        auth = AuthClient(auth_host, int(auth_port))
+        self._dbg(f"auth: start for '{username}' @ {auth_host}:{auth_port}")
+        auth = AuthClient(auth_host, int(auth_port), log=self._dbg)
         try:
-            auth.logon(username, password)
-            realms = auth.realm_list()
+            def _do():
+                auth.logon(username, password)
+                return auth.realm_list()
+            realms = self._run_guarded(
+                _do, 45.0, "auth login", close=auth.close)
             assert auth.session_key is not None
             self._session_key = bytes(auth.session_key)
             self._account_upper = username.upper()
@@ -125,10 +165,12 @@ class WoWChatManager:
                 raise ConnectionError("server returned no realms")
             self.state = "realms"
             self.status = f"authenticated — select a realm"
+            self._dbg(f"auth: done, {len(self.realms)} realm(s)")
             return {"ok": True, "realms": self.realms}
         except Exception as exc:
             self.status = f"error: {exc}"
             self.state = "offline"
+            self._dbg(f"auth: FAILED: {exc}")
             self._cleanup_nets()
             return {"ok": False, "error": str(exc)}
         finally:
@@ -157,11 +199,18 @@ class WoWChatManager:
         self._realm_id = int(target["id"])
         self.status = f"world login {host}:{port} ..."
         self.state = "world"
+        self._dbg(f"world: start login to {host}:{port} as "
+                  f"{self._account_upper} (realm id {self._realm_id})")
         try:
             world = WorldClient()
-            world.connect(host, port)
-            world.login(self._account_upper, self._session_key,
-                        self._realm_id)
+            world.log = self._dbg
+            def _do():
+                world.connect(host, port)
+                world.login(self._account_upper, self._session_key,
+                            self._realm_id)
+                return world
+            self._run_guarded(_do, 60.0, "world login",
+                              close=world.close)
             self.world = world
             chars = [{"guid": c.guid, "name": c.name, "level": c.level,
                       "race": c.race, "class": c.cls}
@@ -170,10 +219,12 @@ class WoWChatManager:
                 raise ConnectionError("no characters on this realm/account")
             self.state = "chars"
             self.status = f"select a character on {target['name']}"
+            self._dbg(f"world: ready, {len(chars)} character(s)")
             return {"ok": True, "realm": self.realm_name, "characters": chars}
         except Exception as exc:
             self.status = f"error: {exc}"
             self.state = "realms"
+            self._dbg(f"world: FAILED: {exc}")
             self._cleanup_world()
             return {"ok": False, "error": str(exc)}
 

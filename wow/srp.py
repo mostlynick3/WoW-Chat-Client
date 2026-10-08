@@ -10,8 +10,11 @@ Mirrors yggdrasilcore src/common/Cryptography/Authentication/SRP6.cpp:
   M1 = SHA1(H(N) xor H(g), H(I), s, A, B, K)
   M2 = SHA1(A, M1, K)
 
-All 32-byte integers on the wire are little-endian. Hash inputs use the
-exact wire bytes. Username/password are uppercased (latin) like the core.
+All multi-byte integers are little-endian, on the wire AND when a
+SHA1 digest is interpreted as an integer (x and u) — this mirrors the
+server BigNumber, whose byte-array conversions default to
+littleEndian=true. Hash inputs use the exact wire bytes.
+Username/password are uppercased (latin) like the core.
 """
 from __future__ import annotations
 
@@ -52,13 +55,12 @@ def upper_latin(s: str) -> str:
 def compute_x(salt_le: bytes, username: str, password: str) -> int:
     up = upper_latin(username) + ":" + upper_latin(password)
     inner = _sha1(up.encode("utf-8"))
-    # BigNumber(SHA1 digest) is big-endian (openssl BN_bin2bn semantics).
-    return int.from_bytes(_sha1(salt_le, inner), "big")
+    # Server BigNumber(digest) defaults to little-endian.
+    return int.from_bytes(_sha1(salt_le, inner), "little")
 
 
 def compute_verifier_for_test(salt_le: bytes, username: str, password: str) -> bytes:
-    # v = g^x mod N (wire little-endian). Server hashes x as big-endian
-    # BigNumber (SHA1 digest -> BigNumber is big-endian); keep that here.
+    # v = g^x mod N (wire little-endian).
     x = compute_x(salt_le, username, password)
     return _int_to_le(pow(G_INT, x, N_INT))
 
@@ -112,8 +114,8 @@ def compute_session_key(
     B = _le_to_int(B_le)
     x = compute_x(salt_le, username, password)
     gx = pow(G_INT, x, N_INT)
-    # S = (B - 3*g^x) ^ (a + u*x) mod N
-    u = int.from_bytes(_sha1(A_le, B_le), "big")
+    # S = (B - 3*g^x) ^ (a + u*x) mod N ; u is LE like server BigNumber.
+    u = int.from_bytes(_sha1(A_le, B_le), "little")
     base = (B - K_MULT * gx) % N_INT
     exp = (a + u * x) % (N_INT - 1)
     S_int = pow(base, exp, N_INT)

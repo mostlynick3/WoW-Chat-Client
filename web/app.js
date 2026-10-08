@@ -1,5 +1,6 @@
 "use strict";
-let sinceId = 0, online = false, pollTimer = null;
+let sinceId = 0, online = false, pollTimer = null, lastDebugTs = 0;
+const dbgLines = [];
 let pickedRealm = 0, pickedChar = "";
 
 const $ = (id) => document.getElementById(id);
@@ -207,6 +208,23 @@ async function refreshStatus() {
       fb.textContent = s.faction || "–";
       fb.className = "badge " + (s.faction === "alliance" ? "ally" : s.faction === "horde" ? "horde" : "");
       $("uniBadge").textContent = "universal: " + (s.universal || "unknown");
+    }
+    const dbg = $("debugLog");
+    if (dbg && s.debug) {
+      let added = false;
+      for (const d of s.debug) {
+        if (d.ts > lastDebugTs) {
+          lastDebugTs = d.ts;
+          const t = new Date(d.ts * 1000).toLocaleTimeString();
+          dbgLines.push(`[${t}] ${d.msg}`);
+          added = true;
+        }
+      }
+      if (added) {
+        while (dbgLines.length > 200) dbgLines.shift();
+        dbg.textContent = dbgLines.join("\n") + "\n";
+        dbg.scrollTop = dbg.scrollHeight;
+      }
     }
   } catch { /* backend starting */ }
 }

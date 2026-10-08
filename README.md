@@ -35,6 +35,27 @@ host/port shown) -> **character** (picked with level/race/class/faction
 shown) -> enter world, exactly like a stock client: the world address
 always comes from the realm list entry.
 
+## If auth fails
+
+Every step is logged: watch the **Debug log** box under the login form
+(same lines go to the terminal as `[ygg] ...`). Typical causes:
+
+- `cannot resolve '...'` / DNS timeout — wrong hostname or no DNS.
+- `connection refused ... not listening there?` — wrong host/port or
+  the authserver is down.
+- `closed the connection while: logon-challenge reply` — the server
+  hung up without answering (packet rejected, IP-filtered, or not a
+  3.3.5a authserver at all).
+- `WOW_FAIL_UNKNOWN_ACCOUNT` on the challenge — account name doesn't
+  exist. The same code on the **proof** step means the password is
+  wrong (each login attempt with a wrong password is also logged
+  server-side, and repeated failures can trigger `WrongPass` IP bans —
+  check `authserver.conf`).
+- `WOW_FAIL_VERSION_INVALID` — build rejected (`AcceptedClientBuilds`
+  server-side, or `StrictVersionCheck` with a zero exe CRC).
+- `... timed out after Ns` — the server stalled mid-handshake; phases
+  have hard deadlines so a hung server can never hang the UI forever.
+
 ## What it does (v1)
 
 - Auth: account login (SRP6), realm list select, world `AUTH_SESSION`,

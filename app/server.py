@@ -36,7 +36,9 @@ mgr = WoWChatManager()
 
 @app.get("/api/status")
 def status():
-    return jsonify(mgr.snapshot())
+    snap = mgr.snapshot()
+    snap["debug"] = mgr.debug_tail(40)
+    return jsonify(snap)
 
 
 @app.get("/api/realms")
