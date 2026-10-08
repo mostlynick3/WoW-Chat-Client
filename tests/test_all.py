@@ -21,6 +21,7 @@ from wow.world_socket import parse_notification
 from app.wow_client import WoWChatManager
 from wow import net as netmod
 from wow.auth_socket import build_logon_challenge, parse_realm_blob
+from wow.world_socket import parse_char_enum
 from wow.opcodes import Opcode
 from wow.world_socket import (
     build_auth_session,
@@ -314,6 +315,32 @@ class TestChallengePacket(unittest.TestCase):
             # "metallinos5" is 11 chars -> 45 bytes total, not 46
             if name == "METALLINOS5":
                 self.assertEqual(len(pkt), 45)
+
+
+def _char_bytes(guid: int, name: str, race: int, cls: int,
+                level: int) -> bytes:
+    import struct as _st
+    b = _st.pack("<Q", guid) + name.encode() + b"\x00"
+    b += bytes([race, cls, 0, 0, 0, 0, 0, 0, level])
+    b += _st.pack("<IIfff", 14, 571, 1.0, 2.0, 3.0)
+    b += _st.pack("<III", 0, 0, 0)  # guild, charFlags, customize
+    b += bytes([0])  # first login
+    b += _st.pack("<III", 0, 0, 0)  # pet
+    b += (_st.pack("<IBI", 0, 0, 0)) * 23  # equipment
+    return b
+
+
+class TestCharEnum(unittest.TestCase):
+    def test_two_chars_stay_aligned(self):
+        # Regression: missing customize u32 + wrong equip count desynced
+        # every character after the first.
+        blob = (bytes([2]) + _char_bytes(1001, "Thrall", 2, 7, 80)
+                + _char_bytes(1002, "Jaina", 1, 8, 80))
+        out = parse_char_enum(blob)
+        self.assertEqual([(c.guid, c.name, c.race, c.cls, c.level)
+                          for c in out],
+                         [(1001, "Thrall", 2, 7, 80),
+                          (1002, "Jaina", 1, 8, 80)])
 
 
 class TestRealmBlob(unittest.TestCase):

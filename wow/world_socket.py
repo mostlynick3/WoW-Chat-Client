@@ -155,10 +155,24 @@ class WorldClient:
             int.from_bytes(_secrets.token_bytes(4), "little")
         payload = build_auth_session(account, seed, self.server_seed, self.K,
                                      realm_id)
-        self.crypt.init(self.K)
+        # NOTE: the AUTH_SESSION header itself goes out PLAINTEXT — the
+        # server only initializes its crypt after reading this packet
+        # (WorldSocket::HandleAuthSessionCallback). Init ours right after
+        # sending so the (encrypted) reply and everything after decrypts.
         self._send(int(Opcode.CMSG_AUTH_SESSION), payload)
+        self.crypt.init(self.K)
         t0 = time.time()
         while time.time() - t0 < wait_auth:
+            try:
+                ev = self.events.get_nowait()
+            except queue.Empty:
+                pass
+            else:
+                if ev.get("t") == "disconnect":
+                    raise ConnectionError(
+                        "world server closed the connection during login "
+                        "(AUTH_SESSION rejected — bad digest/addon/realm?)")
+                self.events.put(ev)  # not ours; keep for later
             try:
                 msg = self.pending_auth_response.get(timeout=0.2)
             except queue.Empty:
@@ -409,6 +423,10 @@ class WorldClient:
 # -- parsers -----------------------------------------------------------
 
 def parse_char_enum(payload: bytes) -> list[CharacterInfo]:
+    # Layout: Player::BuildEnumData. Tail per char after guild u32:
+    # charFlags u32, customize u32, firstLogin u8, pet u32 x3, then slots
+    # 0..INVENTORY_SLOT_BAG_END-1 (23) of u32 display + u8 invtype +
+    # u32 enchant aura.
     r = Reader(payload)
     if r.left() < 1:
         return []
@@ -431,15 +449,16 @@ def parse_char_enum(payload: bytes) -> list[CharacterInfo]:
             mmap = r.u32()
             x, y, z = r.f32(), r.f32(), r.f32()
             _guild = r.u32()
-            _flags = r.u32()
+            _charflags = r.u32()
+            _customize = r.u32()
             _firstlogin = r.u8()
             _petdisplay = r.u32()
             _petlevel = r.u32()
             _petfam = r.u32()
-            # equipment: 23 x (displayid u32, invtype u8) in 3.3.5
             for _i in range(23):
-                r.u32()
-                r.u8()
+                r.u32()  # display id
+                r.u8()   # inventory type
+                r.u32()  # enchant aura
             out.append(CharacterInfo(guid=guid, name=name, level=level,
                                      race=race, cls=cls, zone=zone, map=mmap))
         except ValueError:
