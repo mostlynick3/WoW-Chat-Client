@@ -5,5 +5,7 @@ config.json
 *.log
 dist/
 build/pyinstaller-build/
+*.spec
+/build/*/
 *.spec.bak
 .DS_Store
