@@ -25,8 +25,7 @@ Click an icon above for the latest build (rebuilt on every commit), or
   force another tongue.
 - Join and leave channels, see who's in them, `/who` search across the
   server.
-- Works out of the box on Yggdrasil, TrueWoW, ChromieCraft and Rising
-  Gods — or any 3.3.5a server via manual address entry.
+- Works on any 3.3.5a server that accepts stock client connections.
 
 <p align="center">
 <img width="1100" height="778" alt="Login, realm and character screens" src="https://github.com/user-attachments/assets/5148f0d0-e7f0-4b1d-9f74-edc687583c3d" />
@@ -63,8 +62,6 @@ memory, and wiped on logout — never written to disk.
 ## Limitations
 
 - Chat-only: no movement, combat, spells, or world rendering.
-- Say/Yell only arrive if your character is standing near the speaker,
-  same as in-game.
 
 ## License
 
