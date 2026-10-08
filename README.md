@@ -38,9 +38,11 @@ python3 run.py
 ## How does it work?
 Login is a 3-step wizard: **account** -> **realm** -> **character** (picked with level/race/class/faction
 shown) -> enter world, exactly like a stock client.
+<p align="center">
 <img width="1100" height="778" alt="image" src="https://github.com/user-attachments/assets/5148f0d0-e7f0-4b1d-9f74-edc687583c3d" />
 <img width="599" height="360" alt="image" src="https://github.com/user-attachments/assets/54de7908-4864-4f55-9986-f0dde10e5e17" />
 <img width="1117" height="573" alt="image" src="https://github.com/user-attachments/assets/4f155681-3add-4f4e-8260-4d66fe0f5052" />
+</p>
 
 
 ## If auth fails
