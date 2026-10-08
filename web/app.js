@@ -32,8 +32,23 @@ $("serverPick").addEventListener("change", () => {
   const manual = $("serverPick").value === "manual";
   $("manualBox").classList.toggle("hidden", !manual);
   syncBranding();
+  syncTitle();
   try { localStorage.setItem("ygg_server", $("serverPick").value); } catch { }
 });
+/* Page title always names the server: "<label> - WoW Chat".
+   Presets use their shorthand label; manual entry uses the typed
+   auth address (host[:port]), falling back to "Custom" when empty. */
+function syncTitle() {
+  const srv = selectedServer();
+  let name = srv.label;
+  if ($("serverPick").value === "manual") {
+    name = srv.host ? srv.host + (srv.port !== 3724 ? ":" + srv.port : "")
+                    : "Custom";
+  }
+  document.title = `${name} - WoW Chat`;
+}
+for (const id of ["authHost", "authPort"])
+  $(id).addEventListener("input", syncTitle);
 /* Per-server branding: artwork behind the login frame. */
 function syncBranding() {
   const v = $("serverPick").value;
@@ -110,6 +125,7 @@ try {
   if (lastUser) { $("username").value = lastUser; $("remember").checked = true; }
 } catch { }
 syncBranding();
+syncTitle();
 
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {}
