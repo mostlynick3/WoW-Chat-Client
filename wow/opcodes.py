@@ -1,0 +1,57 @@
+"""Opcodes pinned to yggdrasilcore src/server/game/Server/Protocol/Opcodes.h.
+
+Only the subset needed for a chat client is listed here, plus a few
+login-flow opcodes. Values verified 2026-10-08 against the repo.
+"""
+from enum import IntEnum
+
+
+class Opcode(IntEnum):
+    CMSG_CHAR_ENUM = 0x037
+    SMSG_CHAR_ENUM = 0x03B
+    CMSG_PLAYER_LOGIN = 0x03D
+    SMSG_LOGIN_SETTIMESPEED = 0x042
+    CMSG_LOGOUT_REQUEST = 0x04B
+    SMSG_LOGOUT_RESPONSE = 0x04C
+    SMSG_LOGOUT_COMPLETE = 0x04D
+    CMSG_NAME_QUERY = 0x050
+    SMSG_NAME_QUERY_RESPONSE = 0x051
+    CMSG_WHO = 0x062
+    SMSG_WHO = 0x063
+    CMSG_WHOIS = 0x064
+    SMSG_WHOIS = 0x065
+    CMSG_MESSAGECHAT = 0x095
+    SMSG_MESSAGECHAT = 0x096
+    CMSG_JOIN_CHANNEL = 0x097
+    CMSG_LEAVE_CHANNEL = 0x098
+    SMSG_CHANNEL_NOTIFY = 0x099
+    CMSG_CHANNEL_LIST = 0x09A
+    SMSG_CHANNEL_LIST = 0x09B
+    CMSG_CHANNEL_PASSWORD = 0x09C
+    CMSG_CHANNEL_SET_OWNER = 0x09D
+    CMSG_PING = 0x1DC
+    SMSG_PONG = 0x1DD
+    SMSG_AUTH_CHALLENGE = 0x1EC
+    CMSG_AUTH_SESSION = 0x1ED
+    SMSG_AUTH_RESPONSE = 0x1EE
+    SMSG_COMPRESSED_UPDATE_OBJECT = 0x1F6
+    SMSG_LOGIN_VERIFY_WORLD = 0x236
+    CMSG_TIME_SYNC_RESP = 0x391
+    SMSG_GM_MESSAGECHAT = 0x3B3
+    CMSG_KEEP_ALIVE = 0x407
+    # not in Opcodes.h excerpt but standard 3.3.5a:
+    SMSG_CHANNEL_DISPLAY_LIST = 0x09B  # alias of CHANNEL_LIST payload variant
+    CMSG_CHANNEL_DISPLAY_LIST = 0x09A
+
+
+# Auth-server (port 3724) one-byte commands (wowdev wiki, 3.3.5a).
+CMD_AUTH_LOGON_CHALLENGE = 0x00
+CMD_AUTH_LOGON_PROOF = 0x01
+CMD_AUTH_RECONNECT_CHALLENGE = 0x02
+CMD_AUTH_RECONNECT_PROOF = 0x03
+CMD_REALM_LIST = 0x10
+CMD_XFER_INITIATE = 0x30
+CMD_XFER_DATA = 0x31
+
+BUILD = 12340
+EXPANSION_WOTLK = 2

@@ -1,0 +1,14 @@
+{
+  "auth_host": "127.0.0.1",
+  "auth_port": 3724,
+  "realm_id": 1,
+  "world_host_override": "",
+  "world_port_override": 0,
+  "build": 12340,
+  "platform": "x86",
+  "os": "Win",
+  "locale": "enUS",
+  "language": 7,
+  "http_host": "127.0.0.1",
+  "http_port": 5950
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ygg Chat — WotLK chat client</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Ygg Chat <span class="sub">WotLK 3.3.5a chat client</span></h1>
+  <div id="conn"><span id="dot"></span><span id="connText">offline</span></div>
+</header>
+
+<main>
+  <section id="loginCard" class="card">
+    <h2>Connect</h2>
+    <div class="grid">
+      <label>Auth host <input id="authHost" value="127.0.0.1"></label>
+      <label>Auth port <input id="authPort" value="3724" inputmode="numeric"></label>
+      <label>Account <input id="username" autocomplete="username"></label>
+      <label>Password <input id="password" type="password" autocomplete="current-password"></label>
+      <label>Realm ID <input id="realmId" value="1" inputmode="numeric"></label>
+      <label>Character (blank = first) <input id="charName" placeholder="optional"></label>
+      <label>World host override <input id="worldHost" placeholder="optional"></label>
+      <label>World port override <input id="worldPort" placeholder="optional"></label>
+    </div>
+    <div class="row">
+      <button id="btnLogin">Log in &amp; enter world</button>
+      <button id="btnLogout" class="ghost">Log out</button>
+      <span id="loginMsg" class="msg"></span>
+    </div>
+    <p class="hint">Credentials stay in server memory only. Session key is zeroed on logout.
+    Say/Yell are proximity-based: stand near speakers or use World/guild channels.</p>
+  </section>
+
+  <section id="chatCard" class="card hidden">
+    <h2>Chat <span id="whoami" class="sub"></span></h2>
+    <div id="feed"></div>
+    <div class="row wrap">
+      <select id="kind">
+        <option value="say">Say</option>
+        <option value="yell">Yell</option>
+        <option value="emote">Emote</option>
+        <option value="party">Party</option>
+        <option value="guild">Guild</option>
+        <option value="officer">Officer</option>
+        <option value="raid">Raid</option>
+        <option value="raid_warning">RaidWarn</option>
+        <option value="battleground">BG</option>
+        <option value="whisper">Whisper</option>
+        <option value="channel" selected>Channel</option>
+      </select>
+      <input id="target" placeholder="whisper to / channel name" value="World">
+      <select id="lang" title="Language (cores reject Universal unless GM/two-side)">
+        <option value="7" selected>Common (7)</option>
+        <option value="1">Orcish (1)</option>
+        <option value="0">Universal (0, GM only)</option>
+      </select>
+      <input id="text" placeholder="message…  (Enter to send, /join X to join channel)" size="40">
+      <button id="btnSend">Send</button>
+    </div>
+    <div class="row wrap">
+      <input id="chanName" placeholder="channel" value="World">
+      <input id="chanPass" placeholder="password (optional)" size="12">
+      <button id="btnJoin">Join</button>
+      <button id="btnLeave" class="ghost">Leave</button>
+      <button id="btnChanList" class="ghost">List members</button>
+      <input id="whoName" placeholder="who: name filter" size="12">
+      <button id="btnWho" class="ghost">Who</button>
+    </div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
