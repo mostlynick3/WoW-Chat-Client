@@ -184,7 +184,13 @@ jobs:
           git tag -f "$TAG" HEAD
           git push -f origin "$TAG"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release/* --clobber
+            # Flush every old asset (renames would otherwise linger next
+            # to the new uploads), then publish the fresh set.
+            for a in $(gh release view "$TAG" --json assets \
+                         -q '.assets[].name'); do
+              gh release delete-asset "$TAG" "$a" -y
+            done
+            gh release upload "$TAG" release/*
             gh release edit "$TAG" --title "$TITLE" --notes "$BODY"
           else
             gh release create "$TAG" release/* --title "$TITLE" \
