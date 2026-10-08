@@ -67,7 +67,7 @@ jobs:
           esac
           # shellcheck disable=SC2086
           python -m PyInstaller --noconfirm --onefile \
-            --name ygg-chat-desktop \
+            --name wow-chat-desktop \
             --exclude-module PyQt5 --exclude-module PyQt6 \
             --exclude-module PySide2 --exclude-module PySide6 \
             --exclude-module wx \
@@ -84,7 +84,7 @@ jobs:
         shell: bash
         run: |
           python -m PyInstaller --noconfirm --onefile \
-            --name ygg-chat \
+            --name wow-chat \
             --add-data "web:web" run.py
       - name: stage artifacts
         shell: bash
@@ -92,12 +92,12 @@ jobs:
           mkdir -p release
           os="${{ matrix.os }}"
           if [ "$os" = "windows-latest" ]; then
-            cp dist/ygg-chat-desktop.exe release/ygg-chat-desktop-windows.exe
+            cp dist/wow-chat-desktop.exe release/wow-chat-desktop-windows.exe
           elif [ "$os" = "macos-latest" ]; then
-            cp dist/ygg-chat-desktop release/ygg-chat-desktop-macos
+            cp dist/wow-chat-desktop release/wow-chat-desktop-macos
           else
-            cp dist/ygg-chat-desktop release/ygg-chat-desktop-linux
-            cp dist/ygg-chat release/ygg-chat-server-linux
+            cp dist/wow-chat-desktop release/wow-chat-desktop-linux
+            cp dist/wow-chat release/wow-chat-server-linux
           fi
           ls -la release/
       - uses: actions/upload-artifact@v4
@@ -120,8 +120,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp dl/ygg-chat-desktop-linux dist/ygg-chat-desktop
-          chmod +x dist/ygg-chat-desktop
+          cp dl/wow-chat-desktop-linux dist/wow-chat-desktop
+          chmod +x dist/wow-chat-desktop
           bash build/build-appimage.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -153,6 +153,9 @@ jobs:
           FULL_SHA=$(git rev-parse HEAD)
           DATE=$(date -u +%Y-%m-%d)
           TITLE="Continuous build #$RUN_NUMBER ($DATE, $SHA)"
+          # The bare Linux desktop onefile is a build intermediate only —
+          # end users get the AppImage instead.
+          rm -f release/wow-chat-desktop-linux
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             NOTES="$(git log --format='- %h %s (%an)' "$TAG"..HEAD)"
             [ -z "$NOTES" ] && NOTES="- (no new commits)"
@@ -165,13 +168,12 @@ jobs:
           The app checks this release on startup (build #$RUN_NUMBER baked in).
 
           **Desktop (distributed)** — double-click and chat, no browser needed:
-          - \`WoW-Chat-Client-linux-x86_64.AppImage\` (recommended on Linux)
-          - \`ygg-chat-desktop-linux\`
-          - \`ygg-chat-desktop-windows.exe\`
-          - \`ygg-chat-desktop-macos\` (Apple Silicon runner; Intel Macs need Rosetta)
+          - \`WoW-Chat-Client-linux-x86_64.AppImage\` (Linux)
+          - \`wow-chat-desktop-windows.exe\`
+          - \`wow-chat-desktop-macos\` (Apple Silicon runner; Intel Macs need Rosetta)
 
           **Server (headless)** — serves the browser UI on port 5950:
-          - \`ygg-chat-server-linux\`
+          - \`wow-chat-server-linux\`
 
           Linux desktop needs system WebKit2GTK to open its own window;
           without it the binary falls back to the system browser.

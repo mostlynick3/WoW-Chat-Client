@@ -3,15 +3,15 @@
 # Repeat on each target OS (macOS / Windows / Linux) — or see dist/ CI notes.
 #
 # Both targets are supported:
-#   ygg-chat-desktop  DISTRIBUTED binary (standalone app window, pywebview).
+#   wow-chat-desktop  DISTRIBUTED binary (standalone app window, pywebview).
 #                     This is what ships in GitHub releases.
-#   ygg-chat          headless/server use (chat via system browser).
+#   wow-chat          headless/server use (chat via system browser).
 #                     Built for completeness, not distributed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 python3 -m pip install --upgrade pip pyinstaller flask
 # Web mode (browser UI)
-python3 -m PyInstaller --noconfirm --onefile --name ygg-chat \
+python3 -m PyInstaller --noconfirm --onefile --name wow-chat \
   --add-data "web:web" run.py
 # Desktop mode (pywebview window when available).
 # NOTE: the build machine's site-packages leaks into the binary via
@@ -35,9 +35,9 @@ case "$(uname -s)" in
 esac
 python3 -m pip install pywebview || true
 # shellcheck disable=SC2086
-python3 -m PyInstaller --noconfirm --onefile --name ygg-chat-desktop \
+python3 -m PyInstaller --noconfirm --onefile --name wow-chat-desktop \
   $DESKTOP_EXCLUDES $ICON_ARG \
   --additional-hooks-dir build/pyinstaller-hooks \
   --add-data "web:web" desktop.py
-echo "done: dist/ygg-chat[.exe]  dist/ygg-chat-desktop[.exe]"
+echo "done: dist/wow-chat[.exe]  dist/wow-chat-desktop[.exe]"
 echo "linux release packaging: build/build-appimage.sh"

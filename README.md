@@ -132,8 +132,8 @@ character from the UI; config file only provides defaults.
 ## Releases (CI)
 
 Every push to `main` runs `.github/workflows/release.yml`: PyInstaller
-builds the server binary (Linux) plus the desktop binaries (Linux,
-Windows, macOS) and publishes them on the rolling **`continuous`**
+builds the server binary (Linux) plus the desktop binaries (Linux
+AppImage, Windows, macOS) and publishes them on the rolling **`continuous`**
 prerelease. The distributed binaries are the desktop ones; the server
 binary is for headless use.
 
