@@ -186,7 +186,10 @@ function showChat() {
 }
 /* Update banner on the login page: shown only when a newer build is
    pending on the releases page, otherwise stays hidden (and silent —
-   including offline or dev builds with no baked-in version). */
+   including offline or dev builds with no baked-in version).
+   Compares against the tag's live commit (git ref), NOT the release's
+   target_commitish field — GitHub freezes that at the branch name given
+   at creation ("main"), so it can never match a SHA. */
 async function checkUpdate() {
   const box = $("updateBox");
   box.classList.add("hidden");
@@ -194,15 +197,18 @@ async function checkUpdate() {
     const v = await (await fetch("/api/version")).json();
     const mine = String(v.sha || "");
     if (!mine || mine === "dev") return;
-    const r = await (await fetch(
+    const ref = await (await fetch(
+      `https://api.github.com/repos/${v.repo}/git/refs/tags/${v.tag}`
+    )).json();
+    const latest = String((ref.object && ref.object.sha) || "");
+    if (!latest || ref.message) return;
+    if (latest.startsWith(mine) || mine.startsWith(latest)) return;
+    const rel = await (await fetch(
       `https://api.github.com/repos/${v.repo}/releases/tags/${v.tag}`
     )).json();
-    if (!r || r.message || !r.target_commitish) return;
-    const latest = String(r.target_commitish);
-    if (latest.startsWith(mine) || mine.startsWith(latest)) return;
     const link = $("updateLink");
     link.href = v.releases_url;
-    const m = /#(\d+)/.exec(r.name || "");
+    const m = /#(\d+)/.exec((rel && rel.name) || "");
     link.textContent =
       m ? `Update available (build #${m[1]})` : "Update available";
     box.classList.remove("hidden");

@@ -54,31 +54,23 @@ jobs:
           BUILD_SHA = "${{ github.sha }}"
           BUILD_DATE = "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           EOF
-      - name: build desktop binary (distributed)
+      - name: linux window backend deps
+        # The window needs PyGObject + Gtk/WebKit GIR data at BUILD time
+        # so PyInstaller can bundle them (setup-python can't see apt's
+        # dist-packages otherwise); the frozen app then runs its window
+        # on any desktop Linux without extra installs.
+        if: matrix.os == 'ubuntu-latest'
         shell: bash
-        # Same trims as build/build-all.sh: exclude unused toolkits/data
-        # libs (else ~500MB), custom gi.repository.Gtk hook override
-        # (else ~1GB of cursor/icon themes), W icon per OS.
         run: |
-          case "${{ matrix.os }}" in
-            windows-latest) ICON_ARG="--icon build/icon.ico" ;;
-            macos-latest) ICON_ARG="--icon build/icon.icns" ;;
-            *) ICON_ARG="" ;;
-          esac
-          # shellcheck disable=SC2086
-          python -m PyInstaller --noconfirm --onefile \
-            --name wow-chat-desktop \
-            --exclude-module PyQt5 --exclude-module PyQt6 \
-            --exclude-module PySide2 --exclude-module PySide6 \
-            --exclude-module wx \
-            --exclude-module numpy --exclude-module pandas \
-            --exclude-module scipy --exclude-module matplotlib \
-            --exclude-module pygame --exclude-module PIL \
-            --exclude-module tkinter \
-            --exclude-module jnius --exclude-module cryptography \
-            $ICON_ARG \
-            --additional-hooks-dir build/pyinstaller-hooks \
-            --add-data "web${{ matrix.sep }}web" desktop.py
+          sudo apt-get update -q
+          sudo apt-get install -y -q python3-gi gir1.2-gtk-3.0 \
+            gir1.2-webkit2-4.1 libgtk-3-0 libwebkit2gtk-4.1-0
+          echo "PYTHONPATH=/usr/lib/python3/dist-packages" >> "$GITHUB_ENV"
+      - name: build desktop binary (distributed)
+        # Everything (excludes, hooks, per-OS icon) lives in the spec —
+        # see build/wow-chat-desktop.spec for why.
+        shell: bash
+        run: python -m PyInstaller --noconfirm build/wow-chat-desktop.spec
       - name: build server binary (linux only, headless use)
         if: matrix.server
         shell: bash

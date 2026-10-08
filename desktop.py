@@ -35,12 +35,27 @@ def main():
     except ImportError:
         print(f"pywebview not installed; opening system browser at {url}")
         print("Tip: pip install pywebview  (optional, for a native window)")
+        _serve_forever_browser(url)
+    except Exception as exc:
+        # Window backend unusable here (e.g. frozen build without a GUI
+        # toolkit, or no display) — degrade to the system browser
+        # instead of crashing.
+        print(f"native window unavailable ({exc}); "
+              f"opening system browser at {url}")
+        _serve_forever_browser(url)
+
+
+def _serve_forever_browser(url: str):
+    try:
         webbrowser.open(url)
-        try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            pass
+    except Exception as exc:
+        print(f"could not open a browser ({exc}); "
+              f"visit {url} manually")
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":

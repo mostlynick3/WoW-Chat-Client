@@ -5,7 +5,9 @@ config.json
 *.log
 dist/
 build/pyinstaller-build/
-*.spec
+# PyInstaller-generated specs at root stay out; the hand-written
+# build spec in build/ is tracked.
+/*.spec
 /build/wow-chat/
 /build/wow-chat-desktop/
 *.spec.bak
