@@ -14,4 +14,6 @@ WoW-Chat-Client.AppDir/
 build/appimagetool*
 # CI-generated per build (baked-in version for the update check)
 app/build_info.py
+# local-only tests, never committed
+tests/
 .DS_Store
