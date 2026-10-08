@@ -19,10 +19,13 @@ BUILD = os.path.join(ROOT, "build")
 # entry provides the icon there instead).
 if sys.platform == "win32":
     icon_file = os.path.join(BUILD, "icon.ico")
+    console = False  # no console window next to the app
 elif sys.platform == "darwin":
     icon_file = os.path.join(BUILD, "icon.icns")
+    console = False
 else:
     icon_file = None
+    console = True  # Linux users run this from a console to see errors
 
 # The build machine's site-packages leaks into the binary via pywebview's
 # backend imports — exclude the toolkits/data libs we never use.
@@ -77,7 +80,7 @@ exe = EXE(
     debug=False,
     strip=False,
     upx=False,
-    console=True,  # users run this from a console to see errors
+    console=console,  # windowed on win/mac, console on linux
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
