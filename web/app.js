@@ -206,7 +206,6 @@ async function refreshStatus() {
       const fb = $("factionBadge");
       fb.textContent = s.faction || "–";
       fb.className = "badge " + (s.faction === "alliance" ? "ally" : s.faction === "horde" ? "horde" : "");
-      $("uniBadge").textContent = "universal: " + (s.universal || "unknown");
     }
     // Debug stream -> browser console (DevTools, F12). Only new lines.
     if (s.debug) {
@@ -274,6 +273,9 @@ $("btnLogout").onclick = async () => {
   online = false; sinceId = 0; feed.innerHTML = "";
   showLogin();
   refreshStatus();
+};
+$("btnOptions").onclick = () => {
+  $("optionsPanel").classList.toggle("hidden");
 };
 
 gotoStep(1);

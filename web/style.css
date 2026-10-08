@@ -125,7 +125,8 @@ button:disabled { opacity: .5; cursor: wait; }
 .line .chan { color: #c9a6ff; }
 .line .time { color: #5b6b7d; font-size: 11.5px; margin-right: 6px; }
 
-.composer { display: grid; grid-template-columns: 110px 130px 86px 1fr auto;
+.composer { display: grid; grid-template-columns: 110px 130px 1fr auto;
   gap: 8px; margin-top: 10px; }
-@media (max-width: 860px) { .composer { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 860px) { .composer { grid-template-columns: 1fr 1fr; }
   #text { grid-column: 1 / -1; } #btnSend { grid-column: 1 / -1; } }
+#optionsPanel label { margin-top: 8px; }

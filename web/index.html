@@ -65,17 +65,28 @@
       <div class="card idcard">
         <div class="charname" id="whoChar">–</div>
         <div class="muted" id="whoRealm">–</div>
-        <div class="badges"><span id="factionBadge" class="badge">–</span><span id="uniBadge" class="badge ghost">universal: …</span></div>
+        <div class="badges"><span id="factionBadge" class="badge">–</span></div>
         <button id="btnLogout" class="ghost danger">Log out</button>
       </div>
       <div class="card">
-        <h3>Channels</h3>
-        <label>Channel<input id="chanName" value="World"></label>
-        <label>Password<input id="chanPass" placeholder="optional"></label>
-        <div class="row wrap">
-          <button id="btnJoin" class="primary">Join</button>
-          <button id="btnLeave" class="ghost">Leave</button>
-          <button id="btnChanList" class="ghost">Members</button>
+        <button id="btnOptions" class="ghost" style="width:100%">⚙ Options</button>
+        <div id="optionsPanel" class="hidden">
+          <label style="margin-top:10px">Language
+            <select id="lang" title="Auto tries Universal first, falls back to your faction tongue if the server rejects it.">
+              <option value="auto" selected>Auto</option>
+              <option value="7">Common</option>
+              <option value="1">Orcish</option>
+              <option value="0">Univ.</option>
+            </select>
+          </label>
+          <h3 style="margin-top:12px">Channels</h3>
+          <label>Channel<input id="chanName" value="World"></label>
+          <label>Password<input id="chanPass" placeholder="optional"></label>
+          <div class="row wrap">
+            <button id="btnJoin" class="primary">Join</button>
+            <button id="btnLeave" class="ghost">Leave</button>
+            <button id="btnChanList" class="ghost">Members</button>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -101,12 +112,6 @@
           <option value="channel" selected>Channel</option>
         </select>
         <input id="target" value="World" title="Whisper target / channel name">
-        <select id="lang" title="Auto tries Universal first, falls back to your faction tongue if the server rejects it.">
-          <option value="auto" selected>Auto</option>
-          <option value="7">Common</option>
-          <option value="1">Orcish</option>
-          <option value="0">Univ.</option>
-        </select>
         <input id="text" placeholder="Message…  (Enter sends, /join Name joins)" autocomplete="off">
         <button id="btnSend" class="primary">Send</button>
       </div>
