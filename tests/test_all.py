@@ -143,6 +143,24 @@ class TestUniversalProbe(unittest.TestCase):
         self.assertIsNone(m.universal_verdict)
         self.assertEqual(len(m.world.sent), 1)
 
+    def test_rejection_match_is_exact_stock_string(self):
+        m = self._mgr()
+        m.send("say", "hello")
+        m._on_notification("Unknown languages!")  # near-miss: no fallback
+        self.assertIsNone(m.universal_verdict)
+        self.assertEqual(len(m.world.sent), 1)
+        m._on_notification("  Unknown Language ")  # case/space: fallback
+        self.assertFalse(m.universal_verdict)
+        self.assertEqual(m.world.sent[-1][1], 1)
+
+    def test_afk_dnd_never_probe(self):
+        m = self._mgr()
+        for kind in ("afk", "dnd"):
+            r = m.send(kind, "brb")
+            self.assertTrue(r["ok"] and not r["probed"])
+            self.assertEqual(r["lang"], 1)
+        self.assertEqual(m.resolve_lang("auto", "afk"), (1, False))
+
     def test_silence_means_accepted(self):
         import time as _t
         m = self._mgr()

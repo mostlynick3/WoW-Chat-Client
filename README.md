@@ -35,14 +35,17 @@ python3 desktop.py
 - Chat send: Say / Yell / Emote / Party / Guild / Officer / Raid /
   RaidWarning / Battleground / Whisper / Channel.
   Language defaults to **Auto: Universal first, faction fallback**.
-  The core rejects client-sent Universal with `SMSG_NOTIFICATION`
-  (`0x1CB`, "Unknown language", acore_string 805) instead of
-  broadcasting, so the client watches ~4s for that rejection and
-  auto-resends in your faction tongue (Common 7 for Alliance, Orcish 1
-  for Horde, derived from your character's race). The verdict is cached
-  per session and shown in the header (`universal: yes/no`); while a
-  probe is in flight further sends use the safe faction tongue, so one
-  session costs at most one rejected send. You can also force a tongue
+  Scope is stock cores + Yggdrasil: stock `ChatHandler` always rejects
+  client-sent Universal for normal chat with `SMSG_NOTIFICATION`
+  (`0x1CB`, "Unknown language", acore_string 805), so the client
+  watches ~4s for exactly that notification and auto-resends in your
+  faction tongue (Common 7 for Alliance, Orcish 1 for Horde, derived
+  from your character's race). The verdict is cached per session and
+  shown in the header (`universal: yes/no`); while a probe is in flight
+  further sends use the safe faction tongue, so one session costs at
+  most one rejected send. AFK/DND always use the faction tongue
+  (stock exempts them from the Universal rejection, so probing with
+  them would be meaningless). You can also force a tongue
   (Common/Orcish/Universal) from the dropdown — forced sends never
   fall back.
 - Chat receive: `SMSG_MESSAGECHAT` + `SMSG_GM_MESSAGECHAT` tolerant parser

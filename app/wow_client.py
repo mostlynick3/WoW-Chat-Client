@@ -23,13 +23,18 @@ from wow.chat_defs import (
 )
 from wow.world_socket import ChatLine, WorldClient
 
-# Universal-first probe tuning. The core answers a rejected Universal send
-# with SMSG_NOTIFICATION "Unknown language" (acore_string 805) instead of
-# broadcasting, so a short window is enough to detect rejection. Chat has
-# no delivery ack, so silence within the window means "accepted".
+# Universal-first probe tuning. Scope: STOCK cores + Yggdrasil only.
+# Stock ChatHandler always rejects client-sent LANG_UNIVERSAL for normal
+# chat with SendNotification(LANG_UNKNOWN_LANGUAGE) -> SMSG_NOTIFICATION
+# "Unknown language" (acore_string 805), so the match below is exact
+# (case/whitespace-insensitive). Chat has no delivery ack, so silence
+# within the window means "accepted".
 PROBE_WINDOW = 4.0   # assume accepted if no rejection arrives within this
 PROBE_GRACE = 10.0   # still honour late rejections for in-flight probes
-LANG_REJECT_HINT = "language"  # lenient: matches localized/custom strings too
+STOCK_UNKNOWN_LANGUAGE_TEXT = "unknown language"
+# AFK/DND are exempt from the Universal rejection on stock cores, so a
+# probe with those types proves nothing -> always use the faction tongue.
+NO_PROBE_KINDS = frozenset({"afk", "dnd"})
 
 
 class WoWChatManager:
@@ -218,16 +223,17 @@ class WoWChatManager:
                 time.sleep(0.5)
 
     # -- actions ------------------------------------------------------
-    def resolve_lang(self, lang) -> tuple[int, bool]:
+    def resolve_lang(self, lang, kind: str = "say") -> tuple[int, bool]:
         """Map a requested language to (tongue, probe?).
 
         lang: "auto"/None = Universal-first with fallback; a number forces
         that tongue with no fallback. While a probe is in flight, auto
         degrades to the safe faction tongue so one session costs at most
-        one rejected send.
+        one rejected send. AFK/DND never probe (stock accepts Universal
+        for those regardless, so the result would be meaningless).
         """
         if lang is None or (isinstance(lang, str) and lang == "auto"):
-            if self.universal_verdict is False:
+            if kind in NO_PROBE_KINDS or self.universal_verdict is False:
                 return self.language, False
             now = time.time()
             in_flight = any(now - p["ts"] < PROBE_WINDOW for p in self._probes)
@@ -242,7 +248,7 @@ class WoWChatManager:
              channel: str = "", lang="auto") -> dict:
         if self.state != "online" or not self.world:
             return {"ok": False, "error": "not online"}
-        tongue, probe = self.resolve_lang(lang)
+        tongue, probe = self.resolve_lang(lang, kind)
         ctype = int(SENDABLE.get(kind, SENDABLE["say"]))
         try:
             self.world.send_chat(ctype, tongue, text, target=target,
@@ -268,10 +274,10 @@ class WoWChatManager:
             return {"ok": False, "error": str(exc)}
 
     def _on_notification(self, text: str):
-        """Rejection callback: a language notification matching an in-flight
-        Universal probe means the send never went out -> resend it in the
-        faction tongue and remember the verdict for this session."""
-        if LANG_REJECT_HINT not in text.lower():
+        """Rejection callback: stock "Unknown language" matching an
+        in-flight Universal probe means the send never went out ->
+        resend it in the faction tongue and cache the verdict."""
+        if text.strip().lower() != STOCK_UNKNOWN_LANGUAGE_TEXT:
             return
         now = time.time()
         fresh = [p for p in self._probes if now - p["ts"] < PROBE_GRACE]
