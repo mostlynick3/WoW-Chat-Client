@@ -53,6 +53,23 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+/* WoW text formatting: |cAARRGGBB...|r colors, |H..|h[label]|h links. */
+function fmt(s) {
+  let e = esc(s);
+  e = e.replace(/\|T[^|]*\|t/g, "");
+  e = e.replace(/\|H[^|]*\|h(.*?)\|h/gi, "$1");
+  let open = 0;
+  e = e.replace(/\|c([0-9a-fA-F]{8})/g, (m, a) => {
+    open++;
+    return `<span style="color:#${a.slice(2)}">`;
+  });
+  e = e.replace(/\|r/g, () => {
+    if (open > 0) { open--; return "</span>"; }
+    return "";
+  });
+  while (open-- > 0) e += "</span>";
+  return e.replace(/\|/g, "");
+}
 function busy(btn, on, label) {
   btn.disabled = on;
   if (label !== undefined) btn.dataset.label = btn.textContent, btn.textContent = label;
@@ -98,7 +115,7 @@ $("btnAuth").onclick = async () => {
       localStorage.setItem("ygg_server", $("serverPick").value);
       localStorage.setItem("ygg_user", user);
     } catch { }
-    if (!r.ok) { msg.textContent = "Failed: " + r.error; return; }
+    if (!r.ok) { msg.textContent = "Failed — details in console (F12)."; console.error("[ygg]", r.error); return; }
     renderRealms(r.realms);
     gotoStep(2);
   } catch (e) { msg.textContent = "Failed: " + e; }
@@ -131,7 +148,7 @@ $("btnChars").onclick = async () => {
   busy(btn, true, "Loading…");
   try {
     const r = await api("/api/characters", { realm_id: pickedRealm });
-    if (!r.ok) { msg.textContent = "Failed: " + r.error; return; }
+    if (!r.ok) { msg.textContent = "Failed — details in console (F12)."; console.error("[ygg]", r.error); return; }
     renderChars(r.characters);
     gotoStep(3);
   } catch (e) { msg.textContent = "Failed: " + e; }
@@ -168,7 +185,7 @@ $("btnEnter").onclick = async () => {
   busy(btn, true, "Entering…");
   try {
     const r = await api("/api/enter", { character_name: pickedChar });
-    if (!r.ok) { msg.textContent = "Failed: " + r.error; return; }
+    if (!r.ok) { msg.textContent = "Failed — details in console (F12)."; console.error("[ygg]", r.error); return; }
     note(`Logged in as ${r.character}${r.faction ? ` (${r.faction})` : ""}.`, "system");
     showChat();
     refreshStatus();
@@ -187,7 +204,7 @@ function lineEl(m) {
   const who = m.sender ? `<span class="who">${esc(m.sender)}</span> ` : "";
   const ch = m.channel ? `<span class="chan">[${esc(m.channel)}]</span> ` : "";
   div.innerHTML = `<span class="time">${t}</span><span class="tag">${badge}</span>` +
-    `${who}${ch}<span class="txt">${esc(m.text || "")}</span>`;
+    `${who}${ch}<span class="txt">${fmt(m.text || "")}</span>`;
   return div;
 }
 function note(text, kind) {
@@ -197,9 +214,18 @@ function note(text, kind) {
 async function refreshStatus() {
   try {
     const s = await (await fetch("/api/status")).json();
+    const was = online;
     online = s.state === "online";
     $("dot").className = online ? "on" : (s.state === "offline" ? "" : "busy");
-    $("connText").textContent = `${s.state} — ${s.status || ""}`.slice(0, 90);
+    $("connText").textContent = s.state; // detail lives in console (F12)
+    if (was && !online && !$("chatView").classList.contains("hidden")) {
+      // Backend went away (restart/crash) — the WoW session died with it.
+      online = false; sinceId = 0; feed.innerHTML = "";
+      showLogin(); gotoStep(1);
+      $("authMsg").textContent =
+        "Backend connection lost — please log in again.";
+      console.error("[ygg] backend unreachable or restarted; session lost");
+    }
     // Backend lost mid-wizard (e.g. server booted an idle connection):
     // don't leave the user stranded on realm/character select.
     if (s.state === "offline" &&

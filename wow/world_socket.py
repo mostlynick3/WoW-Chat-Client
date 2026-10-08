@@ -628,7 +628,13 @@ def parse_channel_notify(payload: bytes) -> dict:
         except ValueError:
             pass
         rest = Reader(payload).all_cstrings()
-        names = rest[1:] if rest else []
+        # Payloads carry binary blobs (counts, guids) between strings;
+        # keep only printable fragments so notices never show \x18 garbage.
+        names = []
+        for s in rest[1:]:
+            cleaned = "".join(ch for ch in s if ch.isprintable()).strip()
+            if cleaned:
+                names.append(cleaned)
         text = f"[{tname}] " + " ".join(names)
         return {"notify": tname, "channel": channel, "names": names,
                 "text": text.strip()}

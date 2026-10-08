@@ -278,7 +278,7 @@ class TestLoginWizard(unittest.TestCase):
         self.assertTrue(r["ok"])
         self.assertEqual([c["name"] for c in r["characters"]],
                          ["Thrall", "Jaina"])
-        self.assertIn("10.0.0.6", r["realm"])
+        self.assertEqual(r["realm"], "Northrend")
         # Horde pick -> Orcish fallback tongue
         r = m.enter_world("Thrall")
         self.assertTrue(r["ok"])
@@ -520,6 +520,23 @@ class TestManagerNamesAndAddonFilter(unittest.TestCase):
         m._on_name_query({"guid": 341, "name": "Nickee"})
         msgs = m.get_messages()
         self.assertEqual(msgs[0]["sender"], "Nickee")
+
+    def test_blank_system_lines_dropped(self):
+        import time as _t
+        from wow.world_socket import ChatLine
+        m = self._mgr()
+        m._push_line(ChatLine(ts=_t.time(), opcode=0x96, ctype=0,
+                              kind="system", sender="", channel="",
+                              text="   ", lang=0))
+        self.assertEqual(m.get_messages(), [])
+
+    def test_channel_notice_sanitized(self):
+        import struct as _st
+        from wow.world_socket import parse_channel_notify
+        blob = bytes([0x02]) + b"WorldDefense\x00" + b"\x18\x01\x00"
+        d = parse_channel_notify(blob)
+        self.assertEqual(d["channel"], "WorldDefense")
+        self.assertNotIn("\x18", d["text"])
 
     def test_join_leave_layouts(self):
         # join: u32 0, u8 0, u8 0, cstr name, cstr pass

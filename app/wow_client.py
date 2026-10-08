@@ -109,6 +109,9 @@ class WoWChatManager:
 
     # -- helpers ------------------------------------------------------
     def _push_line(self, line: ChatLine):
+        # Blank system lines carry nothing — don't spam the feed.
+        if not line.text.strip():
+            return
         # Addon protocol (LANG_ADDON) is machine chatter the real client
         # routes to addons invisibly — never show it as chat.
         if line.lang == Language.ADDON:
@@ -232,7 +235,7 @@ class WoWChatManager:
                     "error": f"unknown realm id {realm_id}"}
         host, _, port_s = target["address"].partition(":")
         port = int(port_s or 8085)
-        self.realm_name = f"{target['name']} ({host}:{port})"
+        self.realm_name = target["name"]
         self._realm_id = int(target["id"])
         self.status = f"world login {host}:{port} ..."
         self.state = "world"
