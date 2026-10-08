@@ -77,8 +77,11 @@ Typical causes:
   them would be meaningless). You can also force a tongue
   (Common/Orcish/Universal) from the dropdown — forced sends never
   fall back.
-- Chat receive: `SMSG_MESSAGECHAT` + `SMSG_GM_MESSAGECHAT` tolerant parser
-  (packed GUIDs, channel + GM variants).
+- Chat receive: `SMSG_MESSAGECHAT` + `SMSG_GM_MESSAGECHAT` parsed per
+  `BuildChatPacket` (full u64 guids, GM/channel/monster variants).
+  `LANG_ADDON` traffic (anticheat/addon pings) is filtered out of the
+  feed like a stock client. Player guids resolve to names in the
+  background via `CMSG_NAME_QUERY`.
 - Channels: join (`channel+password`), leave, list members,
   channel notices (`SMSG_CHANNEL_NOTIFY`).
 - Roster: `/who` (`CMSG_WHO`/`SMSG_WHO`), name lookup.

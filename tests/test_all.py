@@ -402,11 +402,12 @@ class TestPackets(unittest.TestCase):
 
     def _chat_payload(self, ctype=0x01, lang=7, sender_guid=0xF130000000001234,
                       channel=None, target_guid=0, text="hello"):
+        import struct as _st
         w = P.Writer()
-        w.u8(ctype).u32(lang).raw(P.pack_guid(sender_guid)).u32(0)
+        w.u8(ctype).u32(lang).u64(sender_guid).u32(0)
         if channel is not None:
             w.cstr(channel)
-        w.raw(P.pack_guid(target_guid))
+        w.u64(target_guid)
         msg = text.encode() + b"\x00"
         w.u32(len(msg)).raw(msg).u8(0)
         return w.bytes()
@@ -417,12 +418,27 @@ class TestPackets(unittest.TestCase):
         assert line
         self.assertEqual(line.text, "hello")
         self.assertEqual(line.kind, "say")
+        self.assertEqual(line.sender_guid, 0xF130000000001234)
 
     def test_parse_channel(self):
         line = parse_chat_packet(0x096, self._chat_payload(ctype=0x11, channel="World"))
         assert line
         self.assertEqual(line.channel, "World")
         self.assertEqual(line.kind, "channel")
+
+    def test_live_anticheat_addon_packet(self):
+        # Captured on Yggdrasil QA: server anticheat addon ping. guids
+        # are FULL u64 (sender == target == player guid 341 here).
+        raw = bytes.fromhex(
+            "07ffffffff550100000000000000000000550100000000000014000000"
+            "41494f5f416e746943686561740966616c73650000")
+        line = parse_chat_packet(0x096, raw)
+        assert line
+        self.assertEqual(line.kind, "whisper")
+        self.assertEqual(line.lang, 0xFFFFFFFF)
+        self.assertEqual(line.sender_guid, 341)
+        self.assertEqual(line.target_guid, 341)
+        self.assertEqual(line.text, "AIO_AntiCheat\tfalse")
 
     def test_parse_who(self):
         w = P.Writer()
@@ -433,12 +449,54 @@ class TestPackets(unittest.TestCase):
         self.assertEqual(d["entries"][0]["name"], "Thrall")
 
     def test_parse_channel_list(self):
+        import struct as _st
         w = P.Writer()
-        w.cstr("World").u8(0).u32(1)
-        w.raw(P.pack_guid(123)).u8(0)
+        w.u8(1).cstr("World").u8(0).u32(1)
+        w.u64(123).u8(0)
         d = parse_channel_list(w.bytes())
         self.assertEqual(d["channel"], "World")
         self.assertEqual(d["count"], 1)
+        self.assertEqual(d["members"][0]["guid"], 123)
+
+    def test_name_query_parse(self):
+        import struct as _st
+        blob = _st.pack("<Q", 341) + bytes([0]) + b"Nickee\x00"
+        from wow.world_socket import parse_name_query
+        d = parse_name_query(blob)
+        self.assertEqual((d["guid"], d["name"]), (341, "Nickee"))
+
+
+class TestManagerNamesAndAddonFilter(unittest.TestCase):
+    def _mgr(self):
+        m = WoWChatManager()
+        m.state = "online"
+        m.language = 1
+        m.world = FakeWorld()
+        return m
+
+    def test_addon_chatter_never_reaches_feed(self):
+        import time as _t
+        from wow.world_socket import ChatLine
+        m = self._mgr()
+        m._push_line(ChatLine(ts=_t.time(), opcode=0x96, ctype=7,
+                              kind="whisper", sender="", channel="",
+                              text="AIO_AntiCheat\tfalse",
+                              lang=0xFFFFFFFF, sender_guid=341))
+        self.assertEqual(m.get_messages(), [])
+        self.assertEqual(m.addon_dropped, 1)
+
+    def test_sender_name_resolved_via_query(self):
+        import time as _t
+        from wow.world_socket import ChatLine
+        m = self._mgr()
+        m._push_line(ChatLine(ts=_t.time(), opcode=0x96, ctype=1,
+                              kind="say", sender="", channel="",
+                              text="hello", lang=7, sender_guid=341))
+        msgs = m.get_messages()
+        self.assertEqual(msgs[0]["sender"], "guid:341")
+        m._on_name_query({"guid": 341, "name": "Nickee"})
+        msgs = m.get_messages()
+        self.assertEqual(msgs[0]["sender"], "Nickee")
 
     def test_join_leave_layouts(self):
         # join: u32 0, u8 0, u8 0, cstr name, cstr pass

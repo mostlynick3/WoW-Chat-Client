@@ -18,6 +18,7 @@ import time
 from wow.auth_socket import AuthClient
 from wow.chat_defs import (
     SENDABLE,
+    Language,
     default_language_for_race,
     faction_of_race,
     language_name,
@@ -68,6 +69,10 @@ class WoWChatManager:
         self._realm_id = 0
         # Ring buffer of debug lines (also printed to stderr).
         self.debug_log: list[dict] = []
+        # guid -> display name cache (filled via CMSG_NAME_QUERY).
+        self.names: dict[int, str] = {}
+        self._name_pending: set[int] = set()
+        self.addon_dropped = 0
 
     def _dbg(self, msg: str):
         line = {"ts": time.time(), "msg": str(msg)}
@@ -104,16 +109,27 @@ class WoWChatManager:
 
     # -- helpers ------------------------------------------------------
     def _push_line(self, line: ChatLine):
+        # Addon protocol (LANG_ADDON) is machine chatter the real client
+        # routes to addons invisibly — never show it as chat.
+        if line.lang == Language.ADDON:
+            with self._lock:
+                self.addon_dropped += 1
+            return
         with self._lock:
             self._seq += 1
             self.history.append({
                 "id": self._seq, "ts": line.ts, "kind": line.kind,
                 "ctype": line.ctype, "sender": line.sender,
                 "channel": line.channel, "text": line.text,
-                "lang": line.lang,
+                "lang": line.lang, "sguid": line.sender_guid,
+                "tguid": line.target_guid,
             })
             if len(self.history) > self.history_limit:
                 del self.history[: len(self.history) - self.history_limit]
+        # Player chat carries guids, not names — resolve in background so
+        # the feed shows names instead of guid:12345.
+        if line.sender_guid and not line.sender:
+            self._maybe_query_name(line.sender_guid)
 
     def _note(self, text: str, kind: str = "system"):
         with self._lock:
@@ -124,6 +140,26 @@ class WoWChatManager:
                 "lang": 0,
             })
 
+    def _maybe_query_name(self, guid: int):
+        with self._lock:
+            if guid in self.names or guid in self._name_pending:
+                return
+            self._name_pending.add(guid)
+        try:
+            if self.world:
+                self.world.name_query(guid)
+        except Exception:
+            pass
+
+    def _on_name_query(self, detail: dict):
+        guid = int(detail.get("guid", 0) or 0)
+        name = str(detail.get("name", "") or "")
+        if guid and name:
+            with self._lock:
+                self.names[guid] = name
+                self._name_pending.discard(guid)
+            self._dbg(f"world: guid {guid} is '{name}'")
+
     def snapshot(self) -> dict:
         with self._lock:
             return {
@@ -133,6 +169,7 @@ class WoWChatManager:
                 "language": self.language,
                 "universal": ("unknown" if self.universal_verdict is None
                               else "yes" if self.universal_verdict else "no"),
+                "addon_dropped": self.addon_dropped,
             }
 
     # -- lifecycle: 1) auth -> realms  2) realm -> characters  3) enter --
@@ -308,6 +345,8 @@ class WoWChatManager:
                     self._note(_fmt_who(ev.get("detail", {})), "roster")
                 elif t == "channel_list":
                     self._note(_fmt_chan_list(ev.get("detail", {})), "roster")
+                elif t == "name_query":
+                    self._on_name_query(ev.get("detail", {}))
                 elif t == "notification":
                     self._on_notification(str(ev.get("text", "")))
                 elif t == "login_verify":
@@ -441,7 +480,16 @@ class WoWChatManager:
 
     def get_messages(self, since_id: int = 0, limit: int = 200) -> list[dict]:
         with self._lock:
-            out = [m for m in self.history if m["id"] > since_id]
+            out = []
+            for m in self.history:
+                if m["id"] <= since_id:
+                    continue
+                m = dict(m)
+                sguid = m.get("sguid") or 0
+                if sguid and not m.get("sender"):
+                    m["sender"] = self.names.get(
+                        sguid, f"guid:{sguid}")
+                out.append(m)
             return out[-limit:]
 
     def logout(self) -> dict:
@@ -466,6 +514,9 @@ class WoWChatManager:
         self.universal_verdict = None
         self._probes = []
         self._accept_noted = False
+        self.names = {}
+        self._name_pending = set()
+        self.addon_dropped = 0
         self.realms = []
         self.realm_name = ""
         self._realm_id = 0

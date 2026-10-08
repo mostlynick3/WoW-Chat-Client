@@ -59,6 +59,8 @@ class ChatLine:
     text: str
     lang: int = 0
     raw: str = ""
+    sender_guid: int = 0
+    target_guid: int = 0
 
 
 @dataclass
@@ -467,84 +469,134 @@ def parse_char_enum(payload: bytes) -> list[CharacterInfo]:
 
 
 def _read_guid_and_rest(payload: bytes):
-    """Shared tolerant SMSG_MESSAGECHAT body parser.
+    """SMSG_MESSAGECHAT body parser, per Chat.cpp BuildChatPacket.
 
-    Real layout (Chat.cpp BuildChatPacket, non-GM player chat):
-      u8 type, u32 lang, packed senderGUID, u32 flags,
-      [channel cstr if type==CHANNEL], packed targetGUID,
-      u32 msgLen, msgBytes, u8 chatTag
-    GM variant inserts u32+name before channel/target parts.
+    Guids are FULL u64 (ByteBuffer << ObjectGuid writes raw uint64).
+    Layout: u8 type, u32 lang, u64 senderGUID, u32 flags, then:
+      - monster/battlenet/whisper-foreign/bg-system/achievement types:
+        u32 namelen + sender name [+ u64 target [+ target name]] ...
+      - default (say/yell/whisper/channel/system/...):
+        [GM sender: u32 namelen + name] [channel: cstr if CHANNEL]
+        u64 targetGUID, u32 msglen, msg, u8 chatTag.
+    LANG_ADDON (0xFFFFFFFF) messages are addon protocol, not human chat.
     """
     r = Reader(payload)
     ctype = r.u8()
     lang = r.u32()
-    sender_guid = r.packed_guid()
+    sender_guid = r.u64()
     flags = r.u32()
     channel = ""
     sender_name = ""
-    # Peek: try GM-style sender name prefix (u32 len + bytes + '\0').
-    # Only treat as name if it parses cleanly AND enough bytes remain.
-    save = r.pos
-    gm_name = ""
-    try:
-        if r.left() >= 5:
+    target_guid = 0
+    text = ""
+
+    def _tail_from(pos: int):
+        """Try msglen+msg+tag at pos. Returns (text, end_ok)."""
+        rr = Reader(payload)
+        rr.pos = pos
+        try:
+            if rr.left() < 4:
+                return None
+            mlen = rr.u32()
+            if not (0 < mlen <= 1024) or mlen > rr.left() + 1:
+                return None
+            raw = rr.raw(min(mlen, rr.left()))
+            msg = raw.split(b"\x00")[0].decode("utf-8", "replace")
+            # valid if only the tag byte (or achievement u32+tag) remains
+            if rr.left() not in (0, 1, 5):
+                return None
+            return msg
+        except ValueError:
+            return None
+
+    if ctype in (0x0C, 0x0D, 0x0E, 0x0F, 0x10,  # monster say/party/yell/whisper/emote
+                 0x29, 0x2A,  # raid boss whisper/emote
+                 0x2F, 0x08,  # battlenet, whisper foreign
+                 0x24, 0x25, 0x26,  # bg system
+                 0x30, 0x31):  # achievement
+        try:
             nlen = r.u32()
-            if 1 < nlen <= 64 and r.left() >= nlen:
+            if 0 < nlen <= 64 and r.left() >= nlen:
                 cand = r.raw(nlen)
                 if cand.endswith(b"\x00"):
-                    gm_name = cand[:-1].decode("utf-8", "replace")
-                    if not gm_name.replace("_", "").replace("-", "").isalnum() \
-                            and len(gm_name) > 12:
+                    sender_name = cand[:-1].decode("utf-8", "replace")
+            if r.left() >= 8:
+                target_guid = r.u64()
+        except ValueError:
+            pass
+        got = _tail_from(r.pos)
+        if got is not None:
+            text = got
+    else:
+        save = r.pos
+        # GM sender-name prefix? Validate via the tail, not guessing.
+        gm_name = ""
+        try:
+            if r.left() >= 5:
+                nlen = r.u32()
+                if 1 < nlen <= 64 and r.left() >= nlen:
+                    cand = r.raw(nlen)
+                    if cand.endswith(b"\x00"):
+                        gm_name = cand[:-1].decode("utf-8", "replace")
+                    else:
                         raise ValueError("not a name")
                 else:
                     raise ValueError("not a name")
             else:
                 raise ValueError("not a name")
-        else:
-            raise ValueError("not a name")
-    except (ValueError, UnicodeDecodeError):
-        r.pos = save
-        gm_name = ""
-    if ctype == 0x11:  # channel
-        try:
-            channel = r.cstr()
-        except ValueError:
+        except (ValueError, UnicodeDecodeError):
             r.pos = save
-    target_guid = 0
-    try:
-        if r.left() >= 1:
-            target_guid = r.packed_guid()
-    except ValueError:
-        pass
-    # message: u32 len + bytes (may include trailing \0), then u8 tag
-    text = ""
-    try:
-        if r.left() >= 4:
-            mlen = r.u32()
-            if 0 < mlen <= r.left() + 1 and mlen <= 1024:
-                raw = r.raw(min(mlen, r.left()))
-                text = raw.split(b"\x00")[0].decode("utf-8", "replace")
-            else:
-                raise ValueError("bad msglen")
+            gm_name = ""
+        if ctype == 0x11:  # channel
+            try:
+                channel = r.cstr()
+            except ValueError:
+                pass
+        try:
+            if r.left() >= 8:
+                target_guid = r.u64()
+        except ValueError:
+            pass
+        got = _tail_from(r.pos)
+        if got is not None:
+            text = got
+            sender_name = gm_name
         else:
-            raise ValueError("no msg")
-    except ValueError:
-        # fallback: last cstring in packet is the message
-        strs = Reader(payload).all_cstrings()
+            # retry without the GM-name skip (plain player layout)
+            r.pos = save
+            if ctype == 0x11:
+                try:
+                    channel = r.cstr()
+                except ValueError:
+                    channel = ""
+            try:
+                if r.left() >= 8:
+                    target_guid = r.u64()
+            except ValueError:
+                pass
+            got = _tail_from(r.pos)
+            if got is not None:
+                text = got
+
+    if not text:
+        # last resort: longest trailing cstring
+        strs = [s for s in Reader(payload).all_cstrings() if s]
         text = strs[-1] if strs else ""
     return {
         "type": ctype, "lang": lang, "sender_guid": sender_guid,
         "target_guid": target_guid, "channel": channel,
-        "sender_name": sender_name or gm_name, "text": text,
+        "sender_name": sender_name, "text": text,
     }
 
 
 def parse_chat_packet(opcode: int, payload: bytes) -> ChatLine | None:
-    if len(payload) < 6:
+    if len(payload) < 14:  # type + lang + sender u64 + flags
         return None
     try:
         d = _read_guid_and_rest(payload)
     except Exception:
+        return None
+    if not d["text"] and d["sender_guid"] == 0 and not d["channel"]:
         return None
     ctype = d["type"]
     kind = CHAT_TYPE_NAMES.get(ctype, f"msg_0x{ctype:02X}")
@@ -552,21 +604,14 @@ def parse_chat_packet(opcode: int, payload: bytes) -> ChatLine | None:
         kind = "channel"
     elif ctype in (0x07, 0x08, 0x09):
         kind = "whisper"
-    # sender display: prefer embedded name, else guid
-    sender = d["sender_name"] or f"guid:{d['sender_guid']}"
-    # Try to recover an extra display name from trailing cstrings for
-    # non-GM packets: [ ..., senderName?, message ]. Heuristic: if the
-    # packet has >=2 cstrings and type needs a name, use second-to-last.
-    try:
-        strs = Reader(payload).all_cstrings()
-        if len(strs) >= 2 and not d["sender_name"]:
-            # channel packets: [channel, message]; plain: [message]
-            pass
-    except Exception:
-        pass
+    # NOTE: the sender NAME is not on the wire for player chat (only the
+    # guid); the manager resolves it via CMSG_NAME_QUERY. GM/monster
+    # packets embed the name directly.
     return ChatLine(ts=time.time(), opcode=opcode, ctype=ctype, kind=kind,
-                    sender=sender, channel=d["channel"], text=d["text"],
-                    lang=d["lang"])
+                    sender=d["sender_name"], channel=d["channel"],
+                    text=d["text"], lang=d["lang"],
+                    sender_guid=d["sender_guid"],
+                    target_guid=d["target_guid"])
 
 
 def parse_channel_notify(payload: bytes) -> dict:
@@ -601,14 +646,17 @@ def parse_notification(payload: bytes) -> str:
 
 
 def parse_channel_list(payload: bytes) -> dict:
+    # Channel::List: u8(1) channel-type, name cstr, flags u8, count u32,
+    # members: guid FULL u64 + flags u8 each.
     try:
         r = Reader(payload)
+        _ctype = r.u8()
         channel = r.cstr()
         _flags = r.u8()
         count = r.u32()
         members: list[dict] = []
         for _ in range(min(count, 500)):
-            guid = r.packed_guid()
+            guid = r.u64()
             _virt = r.u8()
             members.append({"guid": guid})
         return {"channel": channel, "count": count, "members": members}
@@ -640,10 +688,15 @@ def parse_who(payload: bytes) -> dict:
 
 
 def parse_name_query(payload: bytes) -> dict:
+    # NameQueryResponse::Write: guid FULL u64, NameUnknown u8,
+    # then Name cstr (+ realm/race/... which we skip).
     try:
         r = Reader(payload)
-        guid = r.packed_guid()
-        name = r.cstr() if r.left() else ""
-        return {"guid": guid, "name": name}
+        guid = r.u64()
+        unknown = r.u8()
+        name = ""
+        if not unknown and r.left():
+            name = r.cstr()
+        return {"guid": guid, "name": name, "unknown": bool(unknown)}
     except Exception as exc:
         return {"guid": 0, "name": "", "error": str(exc)}
