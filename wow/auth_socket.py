@@ -27,7 +27,7 @@ from .opcodes import (
 AUTH_ERRORS = {
     0x00: "WOW_SUCCESS",
     0x03: "WOW_FAIL_BANNED (account or IP banned)",
-    0x04: "WOW_FAIL_UNKNOWN_ACCOUNT (bad password shows up here too)",
+    0x04: "WOW_FAIL_UNKNOWN_ACCOUNT",
     0x05: "WOW_FAIL_INCORRECT_PASSWORD",
     0x06: "WOW_FAIL_ALREADY_ONLINE",
     0x08: "WOW_FAIL_DB_BUSY",
@@ -133,11 +133,14 @@ class AuthClient:
         cmd = self._byte("logon-challenge reply")
         if cmd != CMD_AUTH_LOGON_CHALLENGE:
             raise ConnectionError(f"unexpected auth reply cmd=0x{cmd:02X}")
-        err = self._byte("logon-challenge reply")
-        if err != 0:
+        # Server prefix is cmd, 0x00, status (LogonChallengeCallback sends
+        # only these 3 bytes on failure, e.g. unknown account).
+        _zero = self._byte("logon-challenge reply")
+        status = self._byte("logon-challenge reply")
+        if status != 0:
             raise PermissionError(
-                f"auth rejected account '{uname}': {_auth_err(err)}")
-        _pad = self._recv(1, "logon-challenge reply")  # zero byte
+                f"auth rejected account '{uname}': {_auth_err(status)}"
+                f"{' (no such account — check the exact account name)' if status == 0x04 else ''}")
         B_le = self._recv(32, "logon-challenge reply (B)")
         g_len = self._byte("logon-challenge reply (g)")
         _g = self._recv(g_len, "logon-challenge reply (g)")
