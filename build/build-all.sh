@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Build single-file executables with PyInstaller for the current OS.
 # Repeat on each target OS (macOS / Windows / Linux) — or see dist/ CI notes.
+#
+# Both targets are supported:
+#   ygg-chat-desktop  DISTRIBUTED binary (standalone app window, pywebview).
+#                     This is what ships in GitHub releases.
+#   ygg-chat          headless/server use (chat via system browser).
+#                     Built for completeness, not distributed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 python3 -m pip install --upgrade pip pyinstaller flask
