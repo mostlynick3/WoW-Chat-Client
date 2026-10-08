@@ -213,12 +213,16 @@ class FakeAuthClient:
 
 class FakeWorldClient:
     def __init__(self):
+        import queue as _q
         from wow.world_socket import CharacterInfo
         self.characters = [CharacterInfo(guid=1001, name="Thrall", level=80,
                                          race=2, cls=7),
                            CharacterInfo(guid=1002, name="Jaina", level=80,
                                          race=1, cls=8)]
         self.logged_in = None
+        self.inbox = _q.Queue()
+        self.events = _q.Queue()
+        self.pings = 0
 
     def connect(self, host, port):
         self.addr = (host, port)
@@ -228,6 +232,12 @@ class FakeWorldClient:
 
     def player_login(self, guid):
         self.entered = guid
+
+    def ping(self):
+        self.pings += 1
+
+    def logout(self):
+        pass
 
     def close(self):
         pass
@@ -281,6 +291,19 @@ class TestLoginWizard(unittest.TestCase):
         m.fetch_realms("h", 3724, "user", "right")
         r = m.fetch_characters(99)
         self.assertFalse(r["ok"])
+
+    def test_chars_phase_disconnect_surfaces_offline(self):
+        import time as _t
+        m = self._mgr()
+        m.fetch_realms("h", 3724, "user", "right")
+        m.fetch_characters(1)
+        self.assertEqual(m.state, "chars")
+        m.world.events.put({"t": "disconnect"})
+        deadline = _t.time() + 5.0
+        while m.state != "offline" and _t.time() < deadline:
+            _t.sleep(0.1)
+        self.assertEqual(m.state, "offline")
+        m.disconnect(silent=True)
 
 
 def _realm_entry(flags: int = 0) -> bytes:

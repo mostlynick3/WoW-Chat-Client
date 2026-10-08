@@ -200,6 +200,16 @@ async function refreshStatus() {
     online = s.state === "online";
     $("dot").className = online ? "on" : (s.state === "offline" ? "" : "busy");
     $("connText").textContent = `${s.state} — ${s.status || ""}`.slice(0, 90);
+    // Backend lost mid-wizard (e.g. server booted an idle connection):
+    // don't leave the user stranded on realm/character select.
+    if (s.state === "offline" &&
+        !$("loginView").classList.contains("hidden") &&
+        (!$("pane2").classList.contains("hidden") ||
+         !$("pane3").classList.contains("hidden"))) {
+      gotoStep(1);
+      $("authMsg").textContent =
+        "Connection to the server was lost — please reconnect.";
+    }
     if (online) {
       $("whoChar").textContent = s.character || "–";
       $("whoRealm").textContent = s.realm || "";

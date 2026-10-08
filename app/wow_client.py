@@ -257,6 +257,11 @@ class WoWChatManager:
             self.state = "chars"
             self.status = f"select a character on {target['name']}"
             self._dbg(f"world: ready, {len(chars)} character(s)")
+            # Keepalive starts NOW, not on entering the world: the server
+            # boots idle char-select connections, which used to look like
+            # "Back button logged me out".
+            self._start_ping_loop()
+            self._start_drain_loop()
             return {"ok": True, "realm": self.realm_name, "characters": chars}
         except Exception as exc:
             self.status = f"error: {exc}"
@@ -290,12 +295,8 @@ class WoWChatManager:
             self._note(f"Logged in as {self.character} on {self.realm_name}. "
                        f"Say/Yell are proximity-based; join World channel with "
                        f"/join World if your server has one.")
-            self._ping_thread = threading.Thread(target=self._ping_loop,
-                                                 daemon=True)
-            self._drain_thread = threading.Thread(target=self._drain_loop,
-                                                  daemon=True)
-            self._ping_thread.start()
-            self._drain_thread.start()
+            self._start_ping_loop()
+            self._start_drain_loop()
             return {"ok": True, "character": self.character,
                     "realm": self.realm_name,
                     "faction": self.faction, "language": self.language}
@@ -303,6 +304,20 @@ class WoWChatManager:
             self.status = f"error: {exc}"
             self.state = "chars"
             return {"ok": False, "error": str(exc)}
+
+    def _start_ping_loop(self):
+        if self._ping_thread and self._ping_thread.is_alive():
+            return
+        self._ping_thread = threading.Thread(target=self._ping_loop,
+                                             daemon=True)
+        self._ping_thread.start()
+
+    def _start_drain_loop(self):
+        if self._drain_thread and self._drain_thread.is_alive():
+            return
+        self._drain_thread = threading.Thread(target=self._drain_loop,
+                                              daemon=True)
+        self._drain_thread.start()
 
     def _ping_loop(self):
         while not self._stop.is_set():
@@ -505,6 +520,11 @@ class WoWChatManager:
     def disconnect(self, silent: bool = False):
         self._stop.set()
         self._cleanup_nets()
+        for t in (self._ping_thread, self._drain_thread):
+            if t and t.is_alive() and t is not threading.current_thread():
+                t.join(timeout=2.0)
+        self._ping_thread = None
+        self._drain_thread = None
         if not silent:
             self.status = "disconnected"
         self.state = "offline"
