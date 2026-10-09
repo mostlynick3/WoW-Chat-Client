@@ -364,8 +364,8 @@ function lineEl(m) {
   const t = new Date((m.ts || 0) * 1000).toLocaleTimeString();
   const badge = { say: "SAY", yell: "YELL", whisper: "WISP", channel: "CHAN",
     guild: "GUILD", party: "PARTY", raid: "RAID", echo: "YOU",
-    emote: "EMOTE", monster_say: "NPC", monster_yell: "NPC",
-    monster_party: "NPC", monster_whisper: "NPC", monster_emote: "NPC",
+    emote: "EMOTE", monster_say: "SAY", monster_yell: "YELL",
+    monster_party: "PARTY", monster_whisper: "WISP", monster_emote: "EMOTE",
     bg: "BG", raid_warning: "RW", boss_emote: "BOSS", boss_whisper: "BOSS",
     battlenet: "BNET", achievement: "ACH", afk: "AFK", dnd: "DND",
     system: "•••", notice: "CHAN", roster: "WHO" }[(m.kind || "system")] || esc(m.kind);

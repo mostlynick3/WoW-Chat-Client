@@ -1,4 +1,6 @@
-# <img src="build/appimage/WoW-Chat-Client.png" width="56"> WoW Chat Client
+<p align="center">
+<img src="docs/title.png" width="600" alt="WoW Chat Client">
+</p>
 
 Chat with your characters on any WotLK 3.3.5a private server — no game
 client needed. Log in as a real character and talk in guild, party,
