@@ -16,6 +16,6 @@ if __name__ == "__main__":
     # under the project changes). Disable with YGG_RELOAD=0, e.g. to keep
     # a connection alive across edits.
     reload = os.environ.get("YGG_RELOAD", "1") != "0"
-    print(f"ygg-chat-client on http://{host}:{port}"
+    print(f"WoW-Chat-Client on http://{host}:{port}"
           + (" (auto-reload on)" if reload else ""))
     app.run(host=host, port=port, threaded=True, use_reloader=reload)
