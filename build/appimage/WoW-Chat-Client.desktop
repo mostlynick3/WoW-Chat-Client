@@ -6,3 +6,6 @@ Exec=wow-chat-desktop
 Icon=WoW-Chat-Client
 Categories=Game;Chat;
 Terminal=false
+# Must match the GTK window's WM_CLASS class, else the taskbar/dock
+# shows a generic icon (verified via xprop: "wow-chat-desktop","Wow-chat-desktop").
+StartupWMClass=Wow-chat-desktop

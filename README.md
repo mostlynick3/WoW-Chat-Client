@@ -34,8 +34,7 @@ Click an icon above for the latest build (rebuilt on every commit), or
 
 ## Run it on your own server
 
-Prefer hosting it on your own website? Grab `wow-chat-server-linux` from the
-release, or run from source on any machine and open
+Prefer hosting it yourself? Run from source on any machine and open
 `http://<your-server>:5950` from any browser — desktop or phone.
 
 ```bash

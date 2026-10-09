@@ -75,7 +75,7 @@
       </div>
       <div class="composer">
         <select id="kind" title="Chat type">
-          <option value="say">Say</option>
+          <option value="say" selected>Say</option>
           <option value="yell">Yell</option>
           <option value="emote">Emote</option>
           <option value="party">Party</option>
@@ -85,11 +85,11 @@
           <option value="raid_warning">RaidWarn</option>
           <option value="battleground">BG</option>
           <option value="whisper">Whisper</option>
-          <option value="channel" selected>Channel</option>
+          <option value="channel">Channel</option>
         </select>
         <input id="target" value="" title="Whisper target" placeholder="Player name">
         <select id="targetSel" title="Joined channels"></select>
-        <input id="text" placeholder="Message…  (Enter sends, /join Name joins)" autocomplete="off">
+        <input id="text" placeholder="Message…" autocomplete="off">
         <button id="btnSend" class="primary">Send</button>
       </div>
     </section>
@@ -119,6 +119,7 @@
 
   <div id="whoModal" class="hidden">
     <div class="whobox">
+      <button class="modalx" data-close="whoModal" title="Close">×</button>
       <div class="wowframe-title">Who List</div>
       <label>Name filter<input id="whoName" placeholder="part of a name"></label>
       <div class="row"><button id="btnWho" class="wowbtn-red">Search</button><button id="btnWhoClose" class="wowbtn">Close</button><span id="whoMsg" class="msg"></span></div>
@@ -128,6 +129,7 @@
 
   <div id="chanModal" class="hidden">
     <div class="whobox">
+      <button class="modalx" data-close="chanModal" title="Close">×</button>
       <div class="wowframe-title">Channel</div>
       <label>Join<input id="chanName" placeholder="Channel name"></label>
       <label>Password<input id="chanPass" placeholder="optional"></label>
@@ -141,6 +143,7 @@
 
   <div id="langModal" class="hidden">
     <div class="whobox">
+      <button class="modalx" data-close="langModal" title="Close">×</button>
       <div class="wowframe-title">Language</div>
       <div id="langList" class="langlist"></div>
       <div class="row"><button id="btnLangClose" class="wowbtn">Close</button></div>
@@ -149,6 +152,7 @@
 
   <div id="tabModal" class="hidden">
     <div class="whobox tabconfig">
+      <button class="modalx" data-close="tabModal" title="Close">×</button>
       <div class="wowframe-title">General Config — New Tab</div>
       <label>Tab name<input id="tabName" placeholder="e.g. Guild + World"></label>
       <div class="tabcfg">

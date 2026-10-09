@@ -2,17 +2,13 @@
 # Build single-file executables with PyInstaller for the current OS.
 # Repeat on each target OS (macOS / Windows / Linux) — or see dist/ CI notes.
 #
-# Both targets are supported:
+# Desktop target only:
 #   wow-chat-desktop  DISTRIBUTED binary (standalone app window, pywebview).
 #                     This is what ships in GitHub releases.
-#   wow-chat          headless/server use (chat via system browser).
-#                     Built for completeness, not distributed.
+# Headless use is plain source: python3 run.py (browser UI on :5950).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 python3 -m pip install --upgrade pip pyinstaller flask
-# Web mode (browser UI)
-python3 -m PyInstaller --noconfirm --onefile --name wow-chat \
-  --add-data "web:web" run.py
 # Desktop mode (pywebview window when available).
 # Everything (excludes, hooks, per-OS icon) lives in the spec file —
 # build-machine site-packages would otherwise leak Qt/numpy/cursors
@@ -20,5 +16,5 @@ python3 -m PyInstaller --noconfirm --onefile --name wow-chat \
 # themes/plugins. Linux desktop runs on system GTK/WebKit, not Qt.
 python3 -m pip install pywebview || true
 python3 -m PyInstaller --noconfirm build/wow-chat-desktop.spec
-echo "done: dist/wow-chat[.exe]  dist/wow-chat-desktop[.exe]"
+echo "done: dist/wow-chat-desktop[.exe]"
 echo "linux release packaging: build/build-appimage.sh"

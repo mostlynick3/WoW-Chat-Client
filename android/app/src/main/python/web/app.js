@@ -166,6 +166,7 @@ function gotoStep(n) {
     $("pane" + i).classList.toggle("hidden", i !== n);
 }
 function showLogin() {
+  document.body.classList.remove("inchat");
   $("chatView").classList.add("hidden");
   $("loginView").classList.remove("hidden");
   gotoStep(1);
@@ -176,6 +177,8 @@ function showChat() {
   sinceId = 0; feed.innerHTML = "";
   tabs = [{ name: "General", sources: null }]; activeTab = "General";
   lastWho = null; lastChan = null;
+  $("kind").value = "say";
+  syncTargetBox();
   $("whoResults").innerHTML = "";
   $("whoResults").classList.add("hidden");
   $("chanMembers").innerHTML = "";
@@ -183,7 +186,26 @@ function showChat() {
   renderTabs();
   $("loginView").classList.add("hidden");
   $("chatView").classList.remove("hidden");
+  document.body.classList.add("inchat");
 }
+/* Click a player name anywhere to whisper them. */
+function whisperTo(name) {
+  name = (name || "").trim();
+  if (!name || name.startsWith("guid:")) return;
+  $("kind").value = "whisper";
+  syncTargetBox();
+  $("target").value = name;
+  $("whoModal").classList.add("hidden");
+  $("chanModal").classList.add("hidden");
+  $("text").focus();
+}
+document.addEventListener("click", (e) => {
+  const el = e.target.closest ? e.target.closest("[data-whisper]") : null;
+  if (el && el.dataset.whisper) whisperTo(el.dataset.whisper);
+});
+document.querySelectorAll(".modalx").forEach((b) => {
+  b.onclick = () => $(b.dataset.close).classList.add("hidden");
+});
 /* Update banner on the login page: shown only when a newer build is
    pending on the releases page, otherwise stays hidden (and silent —
    including offline or dev builds with no baked-in version).
@@ -483,7 +505,14 @@ function lineEl(m) {
   const timeHtml = ts ? `<span class="time">${esc(ts)}</span>` : `<span class="time" style="display:none"></span>`;
   const txt = fmt(m.text || "");
   const sender = m.sender ? esc(m.sender) : "";
+  const senderRaw = m.sender || "";
+  const toRaw = m.to || "";
+  const wattr = (n) => n ? ` data-whisper="${esc(n)}"` : "";
   const ch = m.channel ? esc(m.channel) : "";
+  const snd = (name, raw) => name
+    ? `<span class="sender clickable"${wattr(raw)}>[${name}]:</span> ` : "";
+  const sndBare = (name, raw) => name
+    ? `<span class="sender clickable"${wattr(raw)}>[${name}]</span> ` : "";
   let body = "";
   const ctype = Number(div.dataset.ctype);
   if (kind === "notice") {
@@ -492,56 +521,56 @@ function lineEl(m) {
     body = `<span class="txt">${txt}</span>`;
   } else if (kind === "channel") {
     body = `<span class="prefix">[${ch}]</span> ` +
-      (sender ? `<span class="sender">[${sender}]:</span> ` : "") +
+      snd(sender, senderRaw) +
       `<span class="txt">${txt}</span>`;
   } else if (kind === "whisper") {
     body = m.to
-      ? `<span class="prefix">To</span> <span class="sender">[${esc(m.to)}]:</span> <span class="txt">${txt}</span>`
-      : (sender ? `<span class="sender">[${sender}]</span> <span class="prefix">whispers:</span> <span class="txt">${txt}</span>`
+      ? `<span class="prefix">To</span> <span class="sender clickable"${wattr(toRaw)}>[${esc(m.to)}]:</span> <span class="txt">${txt}</span>`
+      : (sender ? `${sndBare(sender, senderRaw)}<span class="prefix">whispers:</span> <span class="txt">${txt}</span>`
                : `<span class="txt">${txt}</span>`);
   } else if (kind === "guild") {
     body = `<span class="prefix">[Guild]</span> ` +
-      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+      snd(sender, senderRaw) + `<span class="txt">${txt}</span>`;
   } else if (kind === "officer") {
     body = `<span class="prefix">[Officer]</span> ` +
-      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+      snd(sender, senderRaw) + `<span class="txt">${txt}</span>`;
   } else if (kind === "party") {
     const pl = ctype === 0x33 ? "Party Leader" : "Party";
     body = `<span class="prefix">[${pl}]</span> ` +
-      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+      snd(sender, senderRaw) + `<span class="txt">${txt}</span>`;
   } else if (kind === "raid") {
     const pl = ctype === 0x27 ? "Raid Leader" : "Raid";
     body = `<span class="prefix">[${pl}]</span> ` +
-      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+      snd(sender, senderRaw) + `<span class="txt">${txt}</span>`;
   } else if (kind === "raid_warning") {
     body = `<span class="prefix">[Raid Warning]</span> <span class="txt">${txt}</span>`;
   } else if (kind === "bg") {
     body = `<span class="prefix">[Battleground]</span> ` +
-      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+      snd(sender, senderRaw) + `<span class="txt">${txt}</span>`;
   } else if (kind === "say") {
-    body = (sender ? `<span class="sender">[${sender}]</span> <span class="prefix">says:</span> ` : "") +
+    body = (sender ? `${sndBare(sender, senderRaw)}<span class="prefix">says:</span> ` : "") +
       `<span class="txt">${txt}</span>`;
   } else if (kind === "yell") {
-    body = (sender ? `<span class="sender">[${sender}]</span> <span class="prefix">yells:</span> ` : "") +
+    body = (sender ? `${sndBare(sender, senderRaw)}<span class="prefix">yells:</span> ` : "") +
       `<span class="txt">${txt}</span>`;
   } else if (kind === "emote") {
-    body = (sender ? `<span class="sender">[${sender}]</span> ` : "") + `<span class="txt">${txt}</span>`;
+    body = (sender ? sndBare(sender, senderRaw) : "") + `<span class="txt">${txt}</span>`;
   } else if (kind === "achievement") {
-    body = `<span class="txt">${sender ? `[${sender}] ` : ""}${txt}</span>`;
+    body = (sender ? sndBare(sender, senderRaw) : "") + `<span class="txt">${txt}</span>`;
   } else if (kind === "battlenet") {
-    body = (sender ? `<span class="sender">[${sender}]</span> <span class="prefix">whispers:</span> ` : "") +
+    body = (sender ? `${sndBare(sender, senderRaw)}<span class="prefix">whispers:</span> ` : "") +
       `<span class="txt">${txt}</span>`;
   } else if (kind === "boss_emote" || kind === "boss_whisper" ||
              kind.startsWith("monster_")) {
     const verb = kind.endsWith("whisper") ? "whispers:" : kind.endsWith("yell") ? "yells:" :
       kind.endsWith("emote") ? "" : "says:";
-    body = (sender ? `<span class="sender">[${sender}]</span> ` + (verb ? `<span class="prefix">${verb}</span> ` : "") : "") +
+    body = (sender ? `${sndBare(sender, senderRaw)}` + (verb ? `<span class="prefix">${verb}</span> ` : "") : "") +
       `<span class="txt">${txt}</span>`;
   } else if (kind === "afk" || kind === "dnd") {
     body = `<span class="prefix">[${sender || kind.toUpperCase()}]</span> <span class="txt">${txt}</span>`;
   } else {
-    const who = sender ? `<span class="sender">${sender}</span> ` : "";
-    const to = m.to ? `<span class="to">→ ${esc(m.to)}</span> ` : "";
+    const who = sender ? `<span class="sender clickable"${wattr(senderRaw)}>${sender}</span> ` : "";
+    const to = m.to ? `<span class="to clickable"${wattr(toRaw)}>→ ${esc(m.to)}</span> ` : "";
     body = `${who}${to}<span class="txt">${txt}</span>`;
   }
   div.innerHTML = `${timeHtml}${body}`;
@@ -831,7 +860,10 @@ $("btnSend").onclick = send;
 $("text").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
 /* channel modal: fields + join/leave/members live here, not the menu */
 $("btnChanOpen").onclick = () => $("chanModal").classList.remove("hidden");
-$("btnMenuToggle").onclick = () => $("gameMenu").classList.toggle("open");
+$("btnMenuToggle").onclick = () => {
+  $("chatView").classList.toggle("menu-collapsed");
+  $("gameMenu").classList.toggle("open");
+};
 $("btnChanClose").onclick = () => $("chanModal").classList.add("hidden");
 $("chanModal").addEventListener("click", (e) => {
   if (e.target.id === "chanModal") $("chanModal").classList.add("hidden");
@@ -910,7 +942,7 @@ function renderWhoResult(detail) {
       div.className = "line roster";
       const cc = META.class_colors[e.class] || "#ffd100";
       const zone = META.zones[e.zone] || "";
-      div.innerHTML = `<span class="txt"><b>${esc(e.name)}</b> — ` +
+      div.innerHTML = `<span class="txt"><b class="whoname" data-whisper="${esc(e.name)}">${esc(e.name)}</b> — ` +
         `Level ${e.level} ` +
         `<span style="color:${cc}">${esc(CLASSES[e.class] || ("class " + e.class))}</span> ` +
         `${esc(RACES[e.race] || ("race " + e.race))}` +
@@ -942,7 +974,10 @@ function renderChanResult(detail) {
       for (const m of members) {
         const div = document.createElement("div");
         div.className = "line roster";
-        div.innerHTML = `<span class="txt">${esc(m.name || ("guid:" + m.guid))}</span>`;
+        const nm = m.name || ("guid:" + m.guid);
+        div.innerHTML = nm.startsWith("guid:")
+          ? `<span class="txt">${esc(nm)}</span>`
+          : `<span class="txt"><span class="whoname" data-whisper="${esc(nm)}">${esc(nm)}</span></span>`;
         box.appendChild(div);
       }
     }

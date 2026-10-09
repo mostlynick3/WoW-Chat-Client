@@ -5,4 +5,36 @@
 # a permanently blank window — so it stays off here (same tradeoff as
 # Flatpak-packaged browsers).
 export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
+# Wayland note: the app sets no Wayland app-id (pywebview/GTK plain
+# window), so native-Wayland docks can't match it to the desktop file
+# and show a generic taskbar icon. Route Wayland sessions through
+# XWayland, where the WM_CLASS + StartupWMClass pair applies instead.
+#
+# Self-integrate the launcher so taskbars can match the window icon.
+# AppImages don't self-register: without a .desktop file installed the
+# dock shows a generic icon even with a correct StartupWMClass.
+# Sequence: drop the old entry, re-add the current one, then launch.
+if [ -z "${WOWCHAT_NO_DESKTOP_INTEGRATION:-}" ] && [ -n "${APPIMAGE:-}" ] \
+    && [ -n "${HOME:-}" ] && [ -d "$HOME" ]; then
+  APPS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  ICONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons"
+  DESK="$APPS_DIR/WoW-Chat-Client.desktop"
+  if mkdir -p "$APPS_DIR" "$ICONS_DIR" 2>/dev/null; then
+    if [ "$(sed -n 's/^Exec=//p' "$DESK" 2>/dev/null)" != "\"$APPIMAGE\"" ]; then
+      rm -f "$DESK"
+      sleep 0.1
+      sed "s|^Exec=.*|Exec=\"$APPIMAGE\"|" \
+        "$APPDIR/WoW-Chat-Client.desktop" > "$DESK"
+      cp -f "$APPDIR/WoW-Chat-Client.png" \
+        "$ICONS_DIR/WoW-Chat-Client.png" 2>/dev/null
+      if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$APPS_DIR" >/dev/null 2>&1
+      fi
+      sleep 0.5
+    fi
+  fi
+fi
+if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+  export GDK_BACKEND=x11
+fi
 exec "$APPDIR/usr/bin/wow-chat-desktop" "$@"

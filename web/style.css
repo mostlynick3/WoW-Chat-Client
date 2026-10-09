@@ -191,9 +191,20 @@ button:disabled { opacity: .5; cursor: wait; }
 .charrow .spr { display: flex; gap: 4px; }
 .charrow .spr img, .charrow .spr svg { width: 34px; height: 34px; border-radius: 6px; }
 
-/* chat layout: frame left, menu right */
+/* chat layout: frame left, menu right. In chat, fill the viewport. */
 .chatlayout { display: grid; grid-template-columns: 1fr 264px; gap: 14px;
   align-items: start; }
+body.inchat main { max-width: none; padding: 10px 12px 12px; }
+body.inchat .chatlayout { height: calc(100vh - 24px); align-items: stretch; }
+body.inchat .chatframe { min-height: 0; height: 100%; }
+body.inchat .feedwrap { flex: 1; min-height: 0; }
+body.inchat #feed { min-height: 0; max-height: none; }
+/* collapsed sidebar: narrow toggle strip on the right */
+.chatlayout.menu-collapsed { grid-template-columns: 1fr 48px; }
+.chatlayout.menu-collapsed .gamemenu .menubody,
+.chatlayout.menu-collapsed .gamemenu .menuid { display: none; }
+.chatlayout.menu-collapsed .gamemenu .menutitle::after { content: " ◂"; }
+.chatlayout:not(.menu-collapsed) .gamemenu .menutitle::after { content: " ▸"; }
 @media (max-width: 860px) { .chatlayout { grid-template-columns: 1fr; } }
 .charname { font-size: 19px; font-weight: 750; }
 .badges { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
@@ -261,6 +272,15 @@ button:disabled { opacity: .5; cursor: wait; }
 .line.boss_whisper .prefix, .line.boss_whisper .sender, .line.boss_whisper .txt { color: #ffd700; }
 .line.afk .prefix, .line.afk .txt, .line.dnd .prefix, .line.dnd .txt { color: #808080; font-style: italic; }
 .line.roster { color: #a8c7ff; }
+/* clickable player names (feed, who list, channel members) */
+.sender.clickable, .whoname { cursor: pointer; text-decoration: underline dotted; }
+.sender.clickable:hover, .whoname:hover { filter: brightness(1.3); }
+/* modal header close button */
+.whobox { position: relative; }
+.modalx { position: absolute; top: 8px; right: 8px; width: auto; padding: 2px 10px;
+  font-size: 16px; line-height: 1.2; color: #ffd100; background: #1a1a1d;
+  border: 1px solid #4a4a50; border-radius: 6px; cursor: pointer; }
+.modalx:hover { border-color: #ffd100; }
 .tslabel { display: grid; gap: 5px; }
 .tslabel select { width: 100%; }
 

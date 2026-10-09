@@ -1,6 +1,6 @@
 name: build-and-release
 
-# Every push to main: build the server + desktop binaries on all OSes
+# Every push to main: build the desktop binaries on all OSes
 # and (re)publish them on the rolling "continuous" release.
 # Nothing binary is ever stored in the repo (dist/ is gitignored).
 on:
@@ -24,14 +24,12 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            sep: ":"
-            server: true
           - os: windows-latest
-            sep: ";"
-            server: false
           - os: macos-latest
-            sep: ":"
-            server: false
+          # Intel Macs can't run the arm64 binary; native x86_64 build
+          # (Rosetta is only needed to *run* things, the build itself
+          # is native on the Intel runner).
+          - os: macos-15-intel
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,13 +69,6 @@ jobs:
         # see build/wow-chat-desktop.spec for why.
         shell: bash
         run: python -m PyInstaller --noconfirm build/wow-chat-desktop.spec
-      - name: build server binary (linux only, headless use)
-        if: matrix.server
-        shell: bash
-        run: |
-          python -m PyInstaller --noconfirm --onefile \
-            --name wow-chat \
-            --add-data "web:web" run.py
       - name: stage artifacts
         shell: bash
         run: |
@@ -87,9 +78,10 @@ jobs:
             cp dist/wow-chat-desktop.exe release/wow-chat-desktop-windows.exe
           elif [ "$os" = "macos-latest" ]; then
             cp dist/wow-chat-desktop release/wow-chat-desktop-macos
+          elif [ "$os" = "macos-15-intel" ]; then
+            cp dist/wow-chat-desktop release/wow-chat-desktop-macos-intel
           else
             cp dist/wow-chat-desktop release/wow-chat-desktop-linux
-            cp dist/wow-chat release/wow-chat-server-linux
           fi
           ls -la release/
       - uses: actions/upload-artifact@v4
@@ -206,37 +198,76 @@ jobs:
           TAG=continuous
           SHA=$(git rev-parse --short HEAD)
           FULL_SHA=$(git rev-parse HEAD)
-          DATE=$(date -u +%Y-%m-%d)
-          TITLE="Continuous build #$RUN_NUMBER ($DATE, $SHA)"
+          DATETIME=$(date -u +"%Y-%m-%d %H:%M UTC")
+          TITLE="Build #$RUN_NUMBER of main @ commit $SHA ($DATETIME)"
           # The bare Linux desktop onefile is a build intermediate only —
           # end users get the AppImage instead.
           rm -f release/wow-chat-desktop-linux
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            NOTES="$(git log --format='- %h %s (%an)' "$TAG"..HEAD)"
-            [ -z "$NOTES" ] && NOTES="- (no new commits)"
+            NEW_COMMITS="$(git log --format='- %h %s (%an)' "$TAG"..HEAD)"
           else
-            NOTES="$(git log --format='- %h %s (%an)' -20)"
+            NEW_COMMITS="$(git log --format='- %h %s (%an)' -20)"
           fi
-          read -r -d '' BODY <<EOF || true
-          Automated build of \`main\` @ \`$FULL_SHA\` ($DATE).
-          Binaries are rebuilt on every push; \`dist/\` is never stored in the repo.
-          The app checks this release on startup (build #$RUN_NUMBER baked in).
-
-          **Desktop (distributed)** — double-click and chat, no browser needed:
-          - \`WoW-Chat-Client-linux-x86_64.AppImage\` (Linux)
-          - \`wow-chat-desktop-windows.exe\`
-          - \`wow-chat-desktop-macos\` (Apple Silicon runner; Intel Macs need Rosetta)
-          - \`wow-chat-android.apk\` (Android: allow unknown sources to install)
-
-          **Server (headless)** — serves the browser UI on port 5950:
-          - \`wow-chat-server-linux\`
-
-          Linux desktop needs system WebKit2GTK to open its own window;
-          without it the binary falls back to the system browser.
-
-          ## Commits since last build
-          $NOTES
-          EOF
+          OLD_BODY=""
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            OLD_BODY="$(gh release view "$TAG" --json body -q .body)"
+          fi
+          # Assemble the notes with python3 (quoting-safe): this build's
+          # commits get their own group on top, older groups are kept and
+          # only dropped oldest-first if the page would exceed the cap.
+          export RUN_NUMBER SHA FULL_SHA DATETIME NEW_COMMITS OLD_BODY
+          BODY_FILE="$(mktemp)"
+          export BODY_FILE
+          python3 - <<'PYEOF'
+          import os
+          run = os.environ["RUN_NUMBER"]
+          sha = os.environ["SHA"]
+          full = os.environ["FULL_SHA"]
+          dt = os.environ["DATETIME"]
+          head = [
+              "Build of `main` @ commit `%s` (%s)." % (full, dt),
+              "",
+              "**Desktop** — double-click and chat, no browser needed:",
+              "- `WoW-Chat-Client-linux-x86_64.AppImage` (Linux)",
+              "- `wow-chat-desktop-windows.exe` (Windows)",
+              "- `wow-chat-desktop-macos` (macOS Apple Silicon)",
+              "- `wow-chat-desktop-macos-intel` (macOS Intel)",
+              "- `wow-chat-android.apk` (Android)",
+              "",
+              "**Server** — self-host web access for a client on your server: "
+              "download the source and run `python3 run.py` (browser UI on port 5950).",
+              "",
+              "## Commits",
+          ]
+          groups = []
+          for i, line in enumerate(os.environ["OLD_BODY"].splitlines()):
+              if line.startswith("## Commit"):
+                  groups = os.environ["OLD_BODY"].splitlines()[i + 1:]
+                  break
+          while groups and not groups[0].strip():
+              groups.pop(0)
+          if groups and not any(g.startswith("### Build") for g in groups):
+              groups = ["### Older builds"] + groups
+          blocks = []
+          if os.environ["NEW_COMMITS"].strip():
+              blocks.append("### Build #%s (%s, %s)\n%s"
+                            % (run, dt, sha, os.environ["NEW_COMMITS"].strip()))
+          cur = []
+          for g in groups:
+              if g.startswith("### ") and cur:
+                  blocks.append("\n".join(cur).strip())
+                  cur = [g]
+              else:
+                  cur.append(g)
+          if cur and "\n".join(cur).strip():
+              blocks.append("\n".join(cur).strip())
+          body = "\n".join(head + blocks).rstrip() + "\n"
+          while len(body) > 100000 and len(blocks) > 1:
+              blocks.pop()
+              body = "\n".join(head + blocks).rstrip() + "\n"
+          with open(os.environ["BODY_FILE"], "w") as f:
+              f.write(body)
+          PYEOF
           git tag -f "$TAG" HEAD
           git push -f origin "$TAG"
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -247,9 +278,9 @@ jobs:
               gh release delete-asset "$TAG" "$a" -y
             done
             gh release upload "$TAG" release/*
-            gh release edit "$TAG" --title "$TITLE" --notes "$BODY"
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$BODY_FILE"
           else
             gh release create "$TAG" release/* --title "$TITLE" \
-              --notes "$BODY" --prerelease
+              --notes-file "$BODY_FILE" --prerelease
           fi
           ls -la release/
