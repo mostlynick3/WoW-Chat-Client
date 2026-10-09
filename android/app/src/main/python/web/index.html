@@ -93,16 +93,18 @@
         <button id="btnSend" class="primary">Send</button>
       </div>
     </section>
-    <aside class="gamemenu">
-      <div class="menutitle">Menu</div>
+    <aside class="gamemenu" id="gameMenu">
+      <button id="btnMenuToggle" class="menutitle">Menu</button>
       <div class="menuid">
         <div class="charname" id="whoChar">–</div>
         <div class="muted" id="whoRealm">–</div>
       </div>
-      <button id="btnChanOpen" class="wowbtn-red">Channel</button>
-      <button id="btnLangOpen" class="wowbtn-red">Language: Auto</button>
-      <button id="btnWhoOpen" class="wowbtn-red">Who List</button>
-      <button id="btnLogout" class="wowbtn-red">Logout</button>
+      <div class="menubody">
+        <button id="btnChanOpen" class="wowbtn-red">Channel</button>
+        <button id="btnLangOpen" class="wowbtn-red">Language: Auto</button>
+        <button id="btnWhoOpen" class="wowbtn-red">Who List</button>
+        <button id="btnLogout" class="wowbtn-red">Logout</button>
+      </div>
     </aside>
   </section>
 
@@ -133,6 +135,15 @@
       <div class="wowframe-title">Language</div>
       <div id="langList" class="langlist"></div>
       <div class="row"><button id="btnLangClose" class="wowbtn">Close</button></div>
+    </div>
+  </div>
+
+  <div id="tabModal" class="hidden">
+    <div class="whobox">
+      <div class="wowframe-title">New Tab</div>
+      <label>Tab name<input id="tabName" placeholder="e.g. Guild + World"></label>
+      <div id="tabChannels" class="checklist"></div>
+      <div class="row"><button id="btnTabCreate" class="wowbtn-red">Create</button><button id="btnTabClose" class="wowbtn">Close</button><span id="tabMsg" class="msg"></span></div>
     </div>
   </div>
 </main>

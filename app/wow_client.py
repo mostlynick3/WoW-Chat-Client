@@ -492,17 +492,19 @@ class WoWChatManager:
                 self._probes.append({"ts": time.time(), "ctype": ctype,
                                      "text": text, "target": target,
                                      "channel": channel})
-            echo_kind = "whisper" if kind == "whisper" else kind
-            if kind in ("whisper", "channel", "say", "yell", "party",
-                        "guild", "raid"):
+            # Everything else (say/yell/channel/party/guild/raid/...) is
+            # broadcast back to us by the server, so it shows up
+            # naturally — no local echo line. Outgoing whispers are
+            # never echoed by the server, so only those get a local
+            # copy, styled like any other whisper (sender = us).
+            if kind == "whisper":
                 with self._lock:
                     self._seq += 1
-                    label = (f"-> {target or channel or echo_kind} "
-                             f"[{language_name(tongue)}]")
                     self.history.append({
-                        "id": self._seq, "ts": time.time(), "kind": "echo",
-                        "ctype": ctype, "sender": label, "channel": channel,
-                        "text": text, "lang": tongue,
+                        "id": self._seq, "ts": time.time(), "kind": "whisper",
+                        "ctype": ctype, "sender": self.character,
+                        "channel": "", "text": text, "lang": tongue,
+                        "to": target,
                     })
             return {"ok": True, "lang": tongue, "probed": probe}
         except Exception as exc:

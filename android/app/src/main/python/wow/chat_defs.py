@@ -273,9 +273,48 @@ CHAT_TYPE_NAMES = {
     0x05: "officer",
     0x06: "yell",
     0x07: "whisper",
-    0x08: "whisper",
-    0x09: "whisper",
+    0x08: "whisper",      # foreign -> whisper tab
+    0x09: "whisper",      # inform (server echo of our outgoing whisper)
     0x0A: "emote",
-    0x0B: "emote",
+    0x0B: "emote",        # text emote
+    0x0C: "monster_say",
+    0x0D: "monster_party",
+    0x0E: "monster_yell",
+    0x0F: "monster_whisper",
+    0x10: "monster_emote",
     0x11: "channel",
+    0x12: "channel",      # channel system traffic
+    0x13: "channel",
+    0x14: "channel",
+    0x15: "channel",
+    0x16: "channel",
+    0x17: "afk",
+    0x18: "dnd",
+    0x19: "system",       # ignored
+    0x1A: "system",       # skill
+    0x1B: "system",       # loot
+    0x1C: "system",       # money
+    0x1D: "system",       # opening
+    0x1E: "system",       # tradeskills
+    0x1F: "system",       # pet info
+    0x20: "system",       # combat misc
+    0x21: "system",       # xp gain
+    0x22: "system",       # honor gain
+    0x23: "system",       # faction change
+    0x24: "bg",
+    0x25: "bg",
+    0x26: "bg",
+    0x27: "raid",         # raid leader
+    0x28: "raid_warning",
+    0x29: "boss_emote",
+    0x2A: "boss_whisper",
+    0x2B: "system",       # filtered
+    0x2C: "bg",           # battleground
+    0x2D: "bg",           # battleground leader
+    0x2E: "system",       # restricted
+    0x2F: "battlenet",
+    0x30: "achievement",
+    0x31: "achievement",  # guild achievement
+    0x32: "system",       # arena points
+    0x33: "party",        # party leader
 }

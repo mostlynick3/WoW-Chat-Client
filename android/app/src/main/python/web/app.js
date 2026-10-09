@@ -174,7 +174,7 @@ function showLogin() {
 function showChat() {
   // Fresh feed every login: never replay a previous session's lines.
   sinceId = 0; feed.innerHTML = "";
-  tabs = ["All"]; activeTab = "All";
+  tabs = [{ name: "All", channels: null }]; activeTab = "All";
   lastWho = null; lastChan = null;
   $("whoResults").innerHTML = "";
   $("whoResults").classList.add("hidden");
@@ -352,7 +352,10 @@ $("btnEnter").onclick = async () => {
 };
 
 /* ---------- chat ---------- */
-let tabs = ["All"], activeTab = "All";
+/* tabs group the feed; "All" (channels null) shows everything. Tabs are
+   only ever created by hand in the tab modal — never automatically. */
+let tabs = [{ name: "All", channels: null }], activeTab = "All";
+const tabByName = (name) => tabs.find((t) => t.name === name);
 function lineEl(m) {
   const div = document.createElement("div");
   div.className = "line " + (m.kind || "system");
@@ -361,6 +364,10 @@ function lineEl(m) {
   const t = new Date((m.ts || 0) * 1000).toLocaleTimeString();
   const badge = { say: "SAY", yell: "YELL", whisper: "WISP", channel: "CHAN",
     guild: "GUILD", party: "PARTY", raid: "RAID", echo: "YOU",
+    emote: "EMOTE", monster_say: "NPC", monster_yell: "NPC",
+    monster_party: "NPC", monster_whisper: "NPC", monster_emote: "NPC",
+    bg: "BG", raid_warning: "RW", boss_emote: "BOSS", boss_whisper: "BOSS",
+    battlenet: "BNET", achievement: "ACH", afk: "AFK", dnd: "DND",
     system: "•••", notice: "CHAN", roster: "WHO" }[(m.kind || "system")] || esc(m.kind);
   // Notices: channel badge + short text (sender never repeats it).
   if ((m.kind || "") === "notice") {
@@ -368,36 +375,42 @@ function lineEl(m) {
     div.innerHTML = `${ch}<span class="txt">${fmt(m.text || "")}</span>`;
   } else {
     const who = m.sender ? `<span class="who">${esc(m.sender)}</span> ` : "";
+    const to = m.to ? `<span class="to">→ ${esc(m.to)}</span> ` : "";
     const ch = m.channel ? `<span class="chan">[${esc(m.channel)}]</span> ` : "";
     div.innerHTML = `<span class="time">${t}</span><span class="tag">${badge}</span>` +
-      `${who}${ch}<span class="txt">${fmt(m.text || "")}</span>`;
+      `${who}${to}${ch}<span class="txt">${fmt(m.text || "")}</span>`;
   }
   applyTabFilter(div);
   return div;
 }
-/* tabs filter the feed by channel; "All" shows everything */
+/* tabs filter the feed by their channel set; "All" shows everything */
 function applyTabFilter(div) {
-  const show = activeTab === "All" || (div.dataset.channel || "") === activeTab;
+  const tab = tabByName(activeTab) || tabByName("All");
+  if (!tab || !tab.channels) { div.style.display = ""; return; }
+  const ch = div.dataset.channel || "";
+  const show = (ch !== "" && tab.channels.includes(ch)) ||
+    (ch === "" && tab.channels.includes("__whisper") &&
+      div.dataset.kind === "whisper");
   div.style.display = show ? "" : "none";
 }
 function renderTabs() {
   const box = $("tabs");
   box.innerHTML = "";
-  for (const name of tabs) {
+  for (const t of tabs) {
     const el = document.createElement("button");
-    el.className = "tab" + (name === activeTab ? " sel" : "");
-    el.textContent = name === "All" ? "All" : name;
-    el.title = name;
-    el.onclick = () => { activeTab = name; renderTabs(); filterFeed(); };
-    if (name !== "All") {
+    el.className = "tab" + (t.name === activeTab ? " sel" : "");
+    el.textContent = t.name;
+    el.title = t.channels ? t.channels.join(", ") : "Everything";
+    el.onclick = () => { activeTab = t.name; renderTabs(); filterFeed(); };
+    if (t.name !== "All") {
       const x = document.createElement("span");
       x.className = "tabx";
       x.textContent = "×";
       x.title = "Close tab";
       x.onclick = (e) => {
         e.stopPropagation();
-        tabs = tabs.filter((t) => t !== name);
-        if (activeTab === name) activeTab = "All";
+        tabs = tabs.filter((q) => q !== t);
+        if (activeTab === t.name) activeTab = "All";
         renderTabs(); filterFeed();
       };
       el.appendChild(x);
@@ -408,19 +421,50 @@ function renderTabs() {
 function filterFeed() {
   feed.querySelectorAll(".line").forEach(applyTabFilter);
 }
-function ensureTab(channel) {
-  if (channel && !tabs.includes(channel)) {
-    tabs.push(channel);
-    renderTabs();
-  }
+/* new-tab modal: name + which channels (and/or whispers) belong in it.
+   (The old prompt() never fires inside Android WebViews.) */
+function renderTabModal() {
+  $("tabName").value = "";
+  $("tabMsg").textContent = "";
+  const box = $("tabChannels");
+  box.innerHTML = "";
+  const mk = (value, label) => {
+    const lab = document.createElement("label");
+    lab.className = "wowcheck left";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = value;
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(" " + label));
+    box.appendChild(lab);
+  };
+  mk("__whisper", "Whispers");
+  const chans = [...$("chanJoined").options].map((o) => o.value);
+  for (const c of chans) mk(c, c);
+  if (!chans.length)
+    $("tabMsg").textContent = "Join a channel first — or make a whispers tab.";
 }
 $("btnAddTab").onclick = () => {
-  const name = prompt("Tab (channel) name:");
-  if (name && name.trim()) {
-    ensureTab(name.trim());
-    activeTab = name.trim();
-    renderTabs(); filterFeed();
-  }
+  renderTabModal();
+  $("tabModal").classList.remove("hidden");
+};
+$("btnTabClose").onclick = () => $("tabModal").classList.add("hidden");
+$("tabModal").addEventListener("click", (e) => {
+  if (e.target.id === "tabModal") $("tabModal").classList.add("hidden");
+});
+$("btnTabCreate").onclick = () => {
+  const checked = [...$("tabChannels").querySelectorAll("input:checked")]
+    .map((i) => i.value);
+  const msg = $("tabMsg");
+  if (!checked.length) { msg.textContent = "Tick at least one box."; return; }
+  let name = $("tabName").value.trim();
+  if (!name)
+    name = checked.length === 1 && checked[0] !== "__whisper"
+      ? checked[0] : checked.join(" + ");
+  if (!tabByName(name)) tabs.push({ name, channels: checked });
+  activeTab = name;
+  $("tabModal").classList.add("hidden");
+  renderTabs(); filterFeed();
 };
 function note(text, kind) {
   feed.appendChild(lineEl({ ts: Date.now() / 1000, kind: kind || "system", text }));
@@ -476,7 +520,6 @@ async function poll() {
     const d = await (await fetch(`/api/messages?since_id=${sinceId}`)).json();
     for (const m of d.messages || []) {
       sinceId = Math.max(sinceId, m.id);
-      if ((m.kind === "channel" || m.kind === "notice") && m.channel) ensureTab(m.channel);
       if (m.kind === "roster") continue; // answers live in the modals now
       feed.appendChild(lineEl(m));
     }
@@ -559,6 +602,7 @@ $("btnSend").onclick = send;
 $("text").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
 /* channel modal: fields + join/leave/members live here, not the menu */
 $("btnChanOpen").onclick = () => $("chanModal").classList.remove("hidden");
+$("btnMenuToggle").onclick = () => $("gameMenu").classList.toggle("open");
 $("btnChanClose").onclick = () => $("chanModal").classList.add("hidden");
 $("chanModal").addEventListener("click", (e) => {
   if (e.target.id === "chanModal") $("chanModal").classList.add("hidden");
@@ -709,7 +753,7 @@ $("btnDown").onclick = () => feed.scrollBy({ top: feed.clientHeight * 0.9 });
 $("btnLogout").onclick = async () => {
   await api("/api/logout");
   online = false; sinceId = 0; feed.innerHTML = "";
-  tabs = ["All"]; activeTab = "All";
+  tabs = [{ name: "All", channels: null }]; activeTab = "All";
   lastWho = null; lastChan = null;
   $("whoResults").innerHTML = "";
   $("whoResults").classList.add("hidden");
