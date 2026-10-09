@@ -53,13 +53,20 @@ def _restore_system_lib_path():
     inherit our environment. With the bundle dir first, the helpers mix
     bundled libs from the build distro with system helpers from the host
     distro and die silently (permanently blank page). The UI process has
-    already loaded what it needs, so restoring the original path makes
-    UI + helpers use one consistent system set.
+    already loaded what it needs, so restoring the original path (or
+    dropping the override when there was none) makes UI + helpers use
+    one consistent system set.
     """
-    orig = os.environ.get("LD_LIBRARY_PATH_ORIG")
+    if not getattr(sys, "frozen", False):
+        return  # source run: leave the environment alone
+    orig = os.environ.pop("LD_LIBRARY_PATH_ORIG", None)
     if orig is None:
-        return  # not frozen (source run): leave the environment alone
-    os.environ["LD_LIBRARY_PATH"] = orig
+        # Bootloader only backs it up when it pre-existed; otherwise the
+        # bundle dir is all that's in there — drop it outright so the
+        # helpers resolve a pure system set.
+        os.environ.pop("LD_LIBRARY_PATH", None)
+    else:
+        os.environ["LD_LIBRARY_PATH"] = orig
 
 
 def main():
