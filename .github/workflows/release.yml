@@ -130,7 +130,28 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - name: install Android SDK
+        # (android-actions/setup-android calls `sdkmanager tools`, a
+        # package Google removed long ago — install manually instead.)
+        shell: bash
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q wget unzip
+          mkdir -p "$HOME/android-sdk/cmdline-tools"
+          cd "$HOME/android-sdk"
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
+          unzip -q cmdtools.zip -d cmdline-tools/tmp
+          mv cmdline-tools/tmp/cmdline-tools cmdline-tools/latest
+          rm -rf cmdline-tools/tmp cmdtools.zip
+          export ANDROID_HOME="$HOME/android-sdk"
+          export ANDROID_SDK_ROOT="$HOME/android-sdk"
+          echo "ANDROID_HOME=$HOME/android-sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> "$GITHUB_ENV"
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$HOME/android-sdk/platform-tools" >> "$GITHUB_PATH"
+          yes | cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
+          cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" "platforms;android-34" "build-tools;34.0.0"
       - uses: gradle/actions/setup-gradle@v4
       - name: refresh bundled python copy
         shell: bash
