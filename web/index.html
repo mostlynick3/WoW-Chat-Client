@@ -103,6 +103,15 @@
         <button id="btnChanOpen" class="wowbtn-red">Channel</button>
         <button id="btnLangOpen" class="wowbtn-red">Language: Auto</button>
         <button id="btnWhoOpen" class="wowbtn-red">Who List</button>
+        <label class="tslabel">Timestamp<select id="tsFormat" class="wowinput">
+          <option value="none">None</option>
+          <option value="hhmm">03:27</option>
+          <option value="hhmmss">03:27:32</option>
+          <option value="hhmm_ampm">03:27 PM</option>
+          <option value="hhmmss_ampm">03:27:32 PM</option>
+          <option value="HHMM">15:27</option>
+          <option value="HHMMSS" selected>15:27:32</option>
+        </select></label>
         <button id="btnLogout" class="wowbtn-red">Logout</button>
       </div>
     </aside>
@@ -139,10 +148,19 @@
   </div>
 
   <div id="tabModal" class="hidden">
-    <div class="whobox">
-      <div class="wowframe-title">New Tab</div>
+    <div class="whobox tabconfig">
+      <div class="wowframe-title">General Config — New Tab</div>
       <label>Tab name<input id="tabName" placeholder="e.g. Guild + World"></label>
-      <div id="tabChannels" class="checklist"></div>
+      <div class="tabcfg">
+        <div class="tabcats">
+          <div class="catlabel">Categories</div>
+          <button id="tabCatChat" class="wowbtn-red small">Chat</button>
+          <button id="tabCatGlobal" class="wowbtn-red small">Global Channels</button>
+          <button id="tabCatOther" class="wowbtn-red small">Other</button>
+        </div>
+        <div id="tabChannels" class="checklist tablist"></div>
+      </div>
+      <div class="row"><input id="tabCustomChan" placeholder="Custom channel name"><button id="btnTabAddChan" class="wowbtn small">Add</button></div>
       <div class="row"><button id="btnTabCreate" class="wowbtn-red">Create</button><button id="btnTabClose" class="wowbtn">Close</button><span id="tabMsg" class="msg"></span></div>
     </div>
   </div>

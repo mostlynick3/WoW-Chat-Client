@@ -203,55 +203,66 @@ button:disabled { opacity: .5; cursor: wait; }
 .badge.horde { color: #ffa198; border-color: var(--horde); }
 .badge.ghost { color: var(--muted); }
 
-/* black chat frame with tabs + browse buttons */
+/* black chat frame with tabs + browse buttons (in-game: black, gold tabs) */
 .chatframe { background: #000; border: 2px solid #0a0a0c; outline: 1px solid #5a5a60;
-  border-radius: 6px; padding: 0; min-height: 60vh; display: flex; flex-direction: column; }
+  border-radius: 6px; padding: 0; min-height: 60vh; display: flex; flex-direction: column;
+  font-family: "Friz Quadrata", "Trebuchet MS", Verdana, system-ui, sans-serif; }
 .tabbar { display: flex; align-items: flex-end; gap: 4px; padding: 6px 8px 0; }
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
-.tab { font: inherit; font-size: 13px; color: #ffd100; background: #1a1a1d;
+.tab { font: inherit; font-size: 14px; color: #ffd100; background: #1a1a1d;
   border: 1px solid #4a4a50; border-bottom: none; border-radius: 6px 6px 0 0;
-  padding: 4px 14px; cursor: pointer; }
-.tab.sel { background: #000; border-color: #6a6a70; }
+  padding: 4px 14px; cursor: pointer; text-shadow: 1px 1px 2px #000; }
+.tab.sel { background: #000; border-color: #ffd100; color: #ffd100; }
+.tab:not(.sel) { color: #9a8a4a; }
 .tab .tabx { margin-left: 8px; color: #ff8f88; cursor: pointer; }
 .tabadd { font-size: 15px; color: #ffd100; background: transparent;
   border: 1px dashed #4a4a50; border-radius: 6px; padding: 2px 10px; cursor: pointer; }
 .feedwrap { display: flex; gap: 0; border-top: 1px solid #4a4a50; }
 #feed { flex: 1; min-height: 46vh; max-height: 62vh; overflow-y: auto;
-  background: #000; padding: 10px 12px; }
+  background: #000; padding: 8px 10px; order: 2; }
+/* in-game chat buttons sit on the left edge */
 .feednav { display: flex; flex-direction: column; gap: 6px; padding: 8px 6px;
-  background: #0c0c0e; border-left: 1px solid #2a2a2e; }
+  background: #000; border-right: 1px solid #2a2a2e; order: 1; }
 .feednav button { font-size: 13px; color: #ffd100; background: #1a1a1d;
   border: 1px solid #4a4a50; border-radius: 5px; padding: 6px 8px; cursor: pointer; }
 .feednav button:hover { border-color: #ffd100; }
-.line { padding: 3px 6px; border-radius: 6px; white-space: pre-wrap;
-  word-break: break-word; font-size: 13.5px; }
-.line:hover { background: #111927; }
-.tag { display: inline-block; font-size: 10.5px; font-weight: 700; min-width: 52px;
-  text-align: center; border-radius: 5px; padding: 1px 6px; margin-right: 7px;
-  background: var(--panel2); border: 1px solid var(--line); color: var(--muted); }
-.line.say .tag { color: #fff; }
-.line.yell .tag { color: #ff7b72; border-color: #ff7b72; }
-.line.whisper .tag { color: #ffb86b; border-color: #ffb86b; }
-.line.guild .tag { color: #7fe6a0; border-color: #7fe6a0; }
-.line.party .tag, .line.raid .tag { color: #7fb8ff; border-color: #7fb8ff; }
-.line.channel .tag { color: #c9a6ff; border-color: #c9a6ff; }
-.line.system .txt { color: #ffd100; }
-.line.notice .txt { color: var(--muted); font-style: italic; }
-.line.echo .txt { color: #9fe6b8; }
+/* in-game lines: no chips, plain colored text on black */
+.line { padding: 1px 4px; border-radius: 0; white-space: pre-wrap;
+  word-break: break-word; font-size: 14px; line-height: 1.35; background: transparent; }
+.line:hover { background: rgba(255, 255, 255, .04); }
+.line .time { color: #c0c0c0; margin-right: 5px; }
+.line .prefix { font-weight: 400; }
+.line .sender { font-weight: 400; }
+.line .txt { font-weight: 400; }
+.line.say .prefix, .line.say .sender, .line.say .txt { color: #ffffff; }
+.line.yell .prefix, .line.yell .sender, .line.yell .txt { color: #ff4040; }
+.line.emote .prefix, .line.emote .sender, .line.emote .txt { color: #ff8040; }
+.line.guild .prefix, .line.guild .sender, .line.guild .txt { color: #40ff40; }
+.line.officer .prefix, .line.officer .sender, .line.officer .txt { color: #40c040; }
+.line.party .prefix, .line.party .sender, .line.party .txt { color: #7fafff; }
+.line.raid .prefix, .line.raid .sender, .line.raid .txt { color: #ff7f00; }
+.line.raid_warning .prefix, .line.raid_warning .txt { color: #ff4400; font-weight: 700; }
+.line.bg .prefix, .line.bg .sender, .line.bg .txt { color: #ff7f00; }
+.line.whisper .prefix, .line.whisper .sender, .line.whisper .txt { color: #ff80ff; }
+.line.whisper .to { color: #ff80ff; }
+.line.channel .prefix, .line.channel .sender { color: #e0a0a0; }
+.line.channel .txt { color: #e0a0a0; }
+.line.channel .chan { color: #e0a0a0; }
+.line.system .txt { color: #ffff00; }
+.line.notice .txt, .line.notice .chan { color: #ffff00; }
+.line.achievement .txt { color: #ffff00; }
+.line.battlenet .prefix, .line.battlenet .sender, .line.battlenet .txt { color: #00e5ff; }
+.line.monster_say .prefix, .line.monster_say .sender, .line.monster_say .txt,
+.line.monster_yell .prefix, .line.monster_yell .sender, .line.monster_yell .txt,
+.line.monster_party .prefix, .line.monster_party .sender, .line.monster_party .txt,
+.line.monster_whisper .prefix, .line.monster_whisper .sender, .line.monster_whisper .txt,
+.line.monster_emote .prefix, .line.monster_emote .sender, .line.monster_emote .txt { color: #ffeb9c; }
+.line.boss_emote .prefix, .line.boss_emote .sender, .line.boss_emote .txt,
+.line.boss_whisper .prefix, .line.boss_whisper .sender, .line.boss_whisper .txt { color: #ffd700; }
+.line.afk .prefix, .line.afk .txt, .line.dnd .prefix, .line.dnd .txt { color: #808080; font-style: italic; }
 .line.roster { color: #a8c7ff; }
-.line .who { color: #7fd0ff; font-weight: 600; }
-.line .to { color: #ffb86b; font-weight: 600; }
-.line .chan { color: #c9a6ff; }
-.line .time { color: #5b6b7d; font-size: 11.5px; margin-right: 6px; }
-.line.emote .tag { color: #ff9d6b; border-color: #ff9d6b; }
-.line.monster_say .tag, .line.monster_yell .tag, .line.monster_party .tag,
-.line.monster_whisper .tag, .line.monster_emote .tag { color: #ffd98a;
-  border-color: #ffd98a; }
-.line.achievement .tag { color: #ffd100; border-color: #ffd100; }
-.line.boss_emote .tag, .line.boss_whisper .tag,
-.line.raid_warning .tag { color: #ff7b72; border-color: #ff7b72; }
-.line.bg .tag, .line.battlenet .tag { color: #7fb8ff; border-color: #7fb8ff; }
-.line.afk .tag, .line.dnd .tag { color: var(--muted); }
+.tslabel { display: grid; gap: 5px; }
+.tslabel select { width: 100%; }
 
 .composer { display: grid; grid-template-columns: 110px 130px 1fr auto;
   gap: 8px; padding: 10px; border-top: 1px solid #2a2a2e; }
@@ -286,7 +297,7 @@ button:disabled { opacity: .5; cursor: wait; }
 #updateBox.wowfield { margin-top: calc(12px + 1.5em); }
 
 /* popups */
-#whoModal, #chanModal, #langModal { position: fixed; inset: 0; background: rgba(0, 0, 0, .65);
+#whoModal, #chanModal, #langModal, #tabModal { position: fixed; inset: 0; background: rgba(0, 0, 0, .65);
   display: grid; place-items: center; z-index: 50; }
 .whobox { width: min(480px, 92vw); max-height: 80vh; overflow: hidden auto;
   background: linear-gradient(180deg, #232a30, #14181c);
@@ -305,6 +316,19 @@ button:disabled { opacity: .5; cursor: wait; }
   overflow-y: auto; background: rgba(0, 0, 0, .35);
   border: 1px solid #4a4a50; border-radius: 4px; padding: 8px 10px; }
 .wowcheck.left { text-align: left; }
+/* General-Config-style tab modal: categories left, list right */
+.whobox.tabconfig { width: min(640px, 94vw); }
+.tabcfg { display: grid; grid-template-columns: 170px 1fr; gap: 10px; margin-top: 10px; }
+.tabcats { display: grid; gap: 6px; align-content: start;
+  background: rgba(0, 0, 0, .35); border: 1px solid #4a4a50;
+  border-radius: 4px; padding: 8px; }
+.tabcats .catlabel { color: #c8c8c8; font-size: 13px; margin-bottom: 2px; }
+.tabcats .wowbtn-red.small { padding: 6px 10px; font-size: 14px; text-align: left; }
+.tabcats .wowbtn-red.small.sel { outline: 1px solid #ffd100; filter: brightness(1.2); }
+.checklist.tablist { margin: 0; max-height: 40vh; }
+#tabCustomChan { flex: 1; }
+#tabModal .row input { background: #0c0c0e; border: 1px solid #6a6a70;
+  border-radius: 7px; color: #e8e8e8; padding: 8px 12px; }
 /* always-visible scrollbars (mobile WebViews fade the native ones out) */
 .charlist, .realmlist, #feed, .whoresults, .checklist {
   scrollbar-width: thin; scrollbar-color: #6a6a70 #0c0c0e; }

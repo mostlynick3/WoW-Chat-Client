@@ -174,7 +174,7 @@ function showLogin() {
 function showChat() {
   // Fresh feed every login: never replay a previous session's lines.
   sinceId = 0; feed.innerHTML = "";
-  tabs = [{ name: "All", channels: null }]; activeTab = "All";
+  tabs = [{ name: "General", sources: null }]; activeTab = "General";
   lastWho = null; lastChan = null;
   $("whoResults").innerHTML = "";
   $("whoResults").classList.add("hidden");
@@ -352,46 +352,212 @@ $("btnEnter").onclick = async () => {
 };
 
 /* ---------- chat ---------- */
-/* tabs group the feed; "All" (channels null) shows everything. Tabs are
+/* Timestamp display: None | 12h/24h variants. Persisted, applied to
+   every feed line (dataset.ts holds the raw epoch seconds). */
+let tsFormat = "HHMMSS";
+try { tsFormat = localStorage.getItem("ygg_ts") || "HHMMSS"; } catch { }
+function fmtTime(tsSec) {
+  if (tsFormat === "none") return "";
+  const d = new Date((tsSec || 0) * 1000);
+  const p2 = (n) => String(n).padStart(2, "0");
+  const h24 = d.getHours(), m = p2(d.getMinutes()), s = p2(d.getSeconds());
+  const ampm = h24 >= 12 ? "PM" : "AM";
+  let h12 = h24 % 12; if (h12 === 0) h12 = 12;
+  const H12 = p2(h12);
+  if (tsFormat === "hhmm") return `${H12}:${m}`;
+  if (tsFormat === "hhmmss") return `${H12}:${m}:${s}`;
+  if (tsFormat === "hhmm_ampm") return `${H12}:${m} ${ampm}`;
+  if (tsFormat === "hhmmss_ampm") return `${H12}:${m}:${s} ${ampm}`;
+  if (tsFormat === "HHMM") return `${p2(h24)}:${m}`;
+  return `${p2(h24)}:${m}:${s}`;
+}
+function refreshTimestamps() {
+  feed.querySelectorAll(".line").forEach((div) => {
+    const t = div.querySelector(".time");
+    if (!t) return;
+    const s = fmtTime(parseFloat(div.dataset.ts || "0"));
+    t.textContent = s;
+    t.style.display = s ? "" : "none";
+  });
+}
+/* Tab sources: 1:1 parity with the in-game General Config (WotLK).
+   ids pin to wow/chat_defs.py ChatMsg values (wire uint32); kinds pin to
+   CHAT_TYPE_NAMES. Combat/misc opcodes collapse to kind "system" on the
+   wire parse, so filtering uses ctype first, kind second. */
+const TAB_SOURCES = [
+  // Chat — Player Messages
+  { id: "say", label: "Say", cat: "chat", ctypes: [0x01] },
+  { id: "emote", label: "Emote", cat: "chat", ctypes: [0x0A, 0x0B] },
+  { id: "yell", label: "Yell", cat: "chat", ctypes: [0x06] },
+  { id: "guild", label: "Guild Chat", cat: "chat", ctypes: [0x04] },
+  { id: "officer", label: "Officer Chat", cat: "chat", ctypes: [0x05] },
+  { id: "guild_announce", label: "Guild Announce", cat: "chat", ctypes: [0x31] },
+  { id: "achievement", label: "Achievement Announce", cat: "chat", ctypes: [0x30] },
+  { id: "whisper", label: "Whisper", cat: "chat", ctypes: [0x07, 0x08, 0x09] },
+  { id: "real_whisper", label: "Real ID Whisper", cat: "chat", ctypes: [0x2F] },
+  { id: "party", label: "Party", cat: "chat", ctypes: [0x02] },
+  { id: "party_leader", label: "Party Leader", cat: "chat", ctypes: [0x33] },
+  { id: "raid", label: "Raid", cat: "chat", ctypes: [0x03] },
+  { id: "raid_leader", label: "Raid Leader", cat: "chat", ctypes: [0x27] },
+  { id: "raid_warning", label: "Raid Warning", cat: "chat", ctypes: [0x28] },
+  { id: "battleground", label: "Battleground", cat: "chat", ctypes: [0x2C] },
+  { id: "bg_leader", label: "Battleground Leader", cat: "chat", ctypes: [0x2D] },
+  { id: "real_conv", label: "Real ID Conversation", cat: "chat", ctypes: [0x2F], kinds: ["battlenet"] },
+  // Other — Combat
+  { id: "xp", label: "Experience", cat: "other", group: "Combat", ctypes: [0x21] },
+  { id: "honor", label: "Honor", cat: "other", group: "Combat", ctypes: [0x22] },
+  { id: "reputation", label: "Reputation", cat: "other", group: "Combat", ctypes: [0x23] },
+  { id: "skill", label: "Skill-ups", cat: "other", group: "Combat", ctypes: [0x1A] },
+  { id: "loot", label: "Item Loot", cat: "other", group: "Combat", ctypes: [0x1B] },
+  { id: "money", label: "Money Loot", cat: "other", group: "Combat", ctypes: [0x1C] },
+  { id: "tradeskills", label: "Tradeskills", cat: "other", group: "Combat", ctypes: [0x1E] },
+  { id: "opening", label: "Opening", cat: "other", group: "Combat", ctypes: [0x1D] },
+  { id: "pet_info", label: "Pet Info", cat: "other", group: "Combat", ctypes: [0x1F] },
+  { id: "misc_info", label: "Misc Info", cat: "other", group: "Combat", ctypes: [0x20] },
+  // Other — PvP
+  { id: "bg_horde", label: "Battleground Horde", cat: "other", group: "PvP", ctypes: [0x26] },
+  { id: "bg_alliance", label: "Battleground Alliance", cat: "other", group: "PvP", ctypes: [0x25] },
+  { id: "bg_neutral", label: "Battleground Neutral", cat: "other", group: "PvP", ctypes: [0x24] },
+  // Other — Other
+  { id: "system", label: "System Messages", cat: "other", group: "Other", ctypes: [0x00] },
+  { id: "errors", label: "Errors", cat: "other", group: "Other", ctypes: [-1] },
+  { id: "ignored", label: "Ignored", cat: "other", group: "Other", ctypes: [0x19] },
+  { id: "chan_notice", label: "Channel", cat: "other", group: "Other", kinds: ["notice"] },
+  { id: "target_icons", label: "Target Icons", cat: "other", group: "Other", kinds: ["notice"] },
+  { id: "bnet", label: "Battle.net Alerts", cat: "other", group: "Other", ctypes: [0x2F] },
+  { id: "afk", label: "AFK", cat: "other", group: "Other", ctypes: [0x17] },
+  { id: "dnd", label: "DND", cat: "other", group: "Other", ctypes: [0x18] },
+  // Other — Creature Messages
+  { id: "m_say", label: "Say", cat: "other", group: "Creature Messages", ctypes: [0x0C] },
+  { id: "m_emote", label: "Emote", cat: "other", group: "Creature Messages", ctypes: [0x10] },
+  { id: "m_yell", label: "Yell", cat: "other", group: "Creature Messages", ctypes: [0x0E] },
+  { id: "m_whisper", label: "Whisper", cat: "other", group: "Creature Messages", ctypes: [0x0F] },
+  { id: "m_party", label: "Party", cat: "other", group: "Creature Messages", ctypes: [0x0D] },
+  { id: "boss_emote", label: "Boss Emote", cat: "other", group: "Creature Messages", ctypes: [0x29] },
+  { id: "boss_whisper", label: "Boss Whisper", cat: "other", group: "Creature Messages", ctypes: [0x2A] },
+];
+const SOURCE_BY_ID = Object.fromEntries(TAB_SOURCES.map((s) => [s.id, s]));
+function sourceMatches(srcId, d) {
+  if (srcId.startsWith("chan:")) {
+    const want = srcId.slice(5).toLowerCase();
+    return (d.channel || "").toLowerCase() === want &&
+      (d.kind === "channel" || d.kind === "notice");
+  }
+  const src = SOURCE_BY_ID[srcId];
+  if (!src) return false;
+  if (src.ctypes && src.ctypes.includes(d.ctype)) return true;
+  if (src.kinds && src.kinds.includes(d.kind)) {
+    // kind-only sources (channel notices): ctype agnostic
+    if (!src.ctypes) return true;
+    // battlenet double-mapped (Real ID Whisper + Conversation share 0x2F)
+    if (srcId === "real_conv" && d.ctype === 0x2F) return true;
+  }
+  return false;
+}
+/* tabs group the feed; "General" (sources null) shows everything. Tabs are
    only ever created by hand in the tab modal — never automatically. */
-let tabs = [{ name: "All", channels: null }], activeTab = "All";
+let tabs = [{ name: "General", sources: null }], activeTab = "General";
 const tabByName = (name) => tabs.find((t) => t.name === name);
+function tabMatches(tab, d) {
+  if (!tab) return true;
+  if (tab.sources != null) return tab.sources.some((s) => sourceMatches(s, d));
+  // Backward compat: pre-rebuild tabs stored {channels: [...]}.
+  if (tab.channels) {
+    const conv = tab.channels.map((c) => c === "__whisper" ? "whisper" : `chan:${String(c).toLowerCase()}`);
+    return conv.some((s) => sourceMatches(s, d));
+  }
+  return true;
+}
+/* In-game line format: [time] [prefix] sender: text — no badge chips.
+   Colors come from .line.<kind> CSS, matching the default client. */
 function lineEl(m) {
   const div = document.createElement("div");
-  div.className = "line " + (m.kind || "system");
-  div.dataset.kind = m.kind || "system";
+  const kind = m.kind || "system";
+  div.className = "line " + kind;
+  div.dataset.kind = kind;
   div.dataset.channel = m.channel || "";
-  const t = new Date((m.ts || 0) * 1000).toLocaleTimeString();
-  const badge = { say: "SAY", yell: "YELL", whisper: "WISP", channel: "CHAN",
-    guild: "GUILD", party: "PARTY", raid: "RAID", echo: "YOU",
-    emote: "EMOTE", monster_say: "SAY", monster_yell: "YELL",
-    monster_party: "PARTY", monster_whisper: "WISP", monster_emote: "EMOTE",
-    bg: "BG", raid_warning: "RW", boss_emote: "BOSS", boss_whisper: "BOSS",
-    battlenet: "BNET", achievement: "ACH", afk: "AFK", dnd: "DND",
-    system: "•••", notice: "CHAN", roster: "WHO" }[(m.kind || "system")] || esc(m.kind);
-  // Notices: channel badge + short text (sender never repeats it).
-  if ((m.kind || "") === "notice") {
-    const ch = m.channel ? `<span class="chan">[${esc(m.channel)}]</span> ` : "";
-    div.innerHTML = `${ch}<span class="txt">${fmt(m.text || "")}</span>`;
+  const ct = (m.ctype === undefined || m.ctype === null) ? 0 : Number(m.ctype);
+  div.dataset.ctype = String(Number.isNaN(ct) ? 0 : ct);
+  div.dataset.ts = String(m.ts || 0);
+  const ts = fmtTime(m.ts || 0);
+  const timeHtml = ts ? `<span class="time">${esc(ts)}</span>` : `<span class="time" style="display:none"></span>`;
+  const txt = fmt(m.text || "");
+  const sender = m.sender ? esc(m.sender) : "";
+  const ch = m.channel ? esc(m.channel) : "";
+  let body = "";
+  const ctype = Number(div.dataset.ctype);
+  if (kind === "notice") {
+    body = `${ch ? `<span class="chan">[${ch}]</span> ` : ""}<span class="txt">${txt}</span>`;
+  } else if (kind === "system") {
+    body = `<span class="txt">${txt}</span>`;
+  } else if (kind === "channel") {
+    body = `<span class="prefix">[${ch}]</span> ` +
+      (sender ? `<span class="sender">[${sender}]:</span> ` : "") +
+      `<span class="txt">${txt}</span>`;
+  } else if (kind === "whisper") {
+    body = m.to
+      ? `<span class="prefix">To</span> <span class="sender">[${esc(m.to)}]:</span> <span class="txt">${txt}</span>`
+      : (sender ? `<span class="sender">[${sender}]</span> <span class="prefix">whispers:</span> <span class="txt">${txt}</span>`
+               : `<span class="txt">${txt}</span>`);
+  } else if (kind === "guild") {
+    body = `<span class="prefix">[Guild]</span> ` +
+      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+  } else if (kind === "officer") {
+    body = `<span class="prefix">[Officer]</span> ` +
+      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+  } else if (kind === "party") {
+    const pl = ctype === 0x33 ? "Party Leader" : "Party";
+    body = `<span class="prefix">[${pl}]</span> ` +
+      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+  } else if (kind === "raid") {
+    const pl = ctype === 0x27 ? "Raid Leader" : "Raid";
+    body = `<span class="prefix">[${pl}]</span> ` +
+      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+  } else if (kind === "raid_warning") {
+    body = `<span class="prefix">[Raid Warning]</span> <span class="txt">${txt}</span>`;
+  } else if (kind === "bg") {
+    body = `<span class="prefix">[Battleground]</span> ` +
+      (sender ? `<span class="sender">[${sender}]:</span> ` : "") + `<span class="txt">${txt}</span>`;
+  } else if (kind === "say") {
+    body = (sender ? `<span class="sender">[${sender}]</span> <span class="prefix">says:</span> ` : "") +
+      `<span class="txt">${txt}</span>`;
+  } else if (kind === "yell") {
+    body = (sender ? `<span class="sender">[${sender}]</span> <span class="prefix">yells:</span> ` : "") +
+      `<span class="txt">${txt}</span>`;
+  } else if (kind === "emote") {
+    body = (sender ? `<span class="sender">[${sender}]</span> ` : "") + `<span class="txt">${txt}</span>`;
+  } else if (kind === "achievement") {
+    body = `<span class="txt">${sender ? `[${sender}] ` : ""}${txt}</span>`;
+  } else if (kind === "battlenet") {
+    body = (sender ? `<span class="sender">[${sender}]</span> <span class="prefix">whispers:</span> ` : "") +
+      `<span class="txt">${txt}</span>`;
+  } else if (kind === "boss_emote" || kind === "boss_whisper" ||
+             kind.startsWith("monster_")) {
+    const verb = kind.endsWith("whisper") ? "whispers:" : kind.endsWith("yell") ? "yells:" :
+      kind.endsWith("emote") ? "" : "says:";
+    body = (sender ? `<span class="sender">[${sender}]</span> ` + (verb ? `<span class="prefix">${verb}</span> ` : "") : "") +
+      `<span class="txt">${txt}</span>`;
+  } else if (kind === "afk" || kind === "dnd") {
+    body = `<span class="prefix">[${sender || kind.toUpperCase()}]</span> <span class="txt">${txt}</span>`;
   } else {
-    const who = m.sender ? `<span class="who">${esc(m.sender)}</span> ` : "";
+    const who = sender ? `<span class="sender">${sender}</span> ` : "";
     const to = m.to ? `<span class="to">→ ${esc(m.to)}</span> ` : "";
-    const ch = m.channel ? `<span class="chan">[${esc(m.channel)}]</span> ` : "";
-    div.innerHTML = `<span class="time">${t}</span><span class="tag">${badge}</span>` +
-      `${who}${to}${ch}<span class="txt">${fmt(m.text || "")}</span>`;
+    body = `${who}${to}<span class="txt">${txt}</span>`;
   }
+  div.innerHTML = `${timeHtml}${body}`;
   applyTabFilter(div);
   return div;
 }
-/* tabs filter the feed by their channel set; "All" shows everything */
+/* tabs filter the feed by their source set; "General" shows everything */
 function applyTabFilter(div) {
-  const tab = tabByName(activeTab) || tabByName("All");
-  if (!tab || !tab.channels) { div.style.display = ""; return; }
-  const ch = div.dataset.channel || "";
-  const show = (ch !== "" && tab.channels.includes(ch)) ||
-    (ch === "" && tab.channels.includes("__whisper") &&
-      div.dataset.kind === "whisper");
-  div.style.display = show ? "" : "none";
+  const tab = tabByName(activeTab) || tabByName("General");
+  if (!tab) { div.style.display = ""; return; }
+  const d = {
+    kind: div.dataset.kind || "system",
+    channel: div.dataset.channel || "",
+    ctype: Number(div.dataset.ctype || "0"),
+  };
+  div.style.display = tabMatches(tab, d) ? "" : "none";
 }
 function renderTabs() {
   const box = $("tabs");
@@ -400,9 +566,10 @@ function renderTabs() {
     const el = document.createElement("button");
     el.className = "tab" + (t.name === activeTab ? " sel" : "");
     el.textContent = t.name;
-    el.title = t.channels ? t.channels.join(", ") : "Everything";
+    const srcs = t.sources || (t.channels ? t.channels : null);
+    el.title = srcs ? srcs.join(", ") : "Everything";
     el.onclick = () => { activeTab = t.name; renderTabs(); filterFeed(); };
-    if (t.name !== "All") {
+    if (t.name !== "General") {
       const x = document.createElement("span");
       x.className = "tabx";
       x.textContent = "×";
@@ -410,7 +577,7 @@ function renderTabs() {
       x.onclick = (e) => {
         e.stopPropagation();
         tabs = tabs.filter((q) => q !== t);
-        if (activeTab === t.name) activeTab = "All";
+        if (activeTab === t.name) activeTab = "General";
         renderTabs(); filterFeed();
       };
       el.appendChild(x);
@@ -421,11 +588,27 @@ function renderTabs() {
 function filterFeed() {
   feed.querySelectorAll(".line").forEach(applyTabFilter);
 }
-/* new-tab modal: name + which channels (and/or whispers) belong in it.
-   (The old prompt() never fires inside Android WebViews.) */
+/* General-Config-style tab modal: Categories left (Chat / Global Channels
+   / Other), checkbox list right. Selection is kept while switching
+   categories; Global Channels lists joined + custom channels. */
+let tabCat = "chat", tabSelected = new Set(), tabCustomChans = [];
+function joinedChanNames() {
+  const fromSel = [...$("chanJoined").options].map((o) => o.value).filter(Boolean);
+  const out = [...fromSel];
+  for (const c of tabCustomChans) if (!out.includes(c)) out.push(c);
+  return out;
+}
 function renderTabModal() {
   $("tabName").value = "";
   $("tabMsg").textContent = "";
+  tabSelected = new Set();
+  tabCustomChans = [];
+  tabCat = "chat";
+  paintTabModal();
+}
+function paintTabModal() {
+  for (const [id, cat] of [["tabCatChat", "chat"], ["tabCatGlobal", "global"], ["tabCatOther", "other"]])
+    $(id).classList.toggle("sel", tabCat === cat);
   const box = $("tabChannels");
   box.innerHTML = "";
   const mk = (value, label) => {
@@ -434,15 +617,41 @@ function renderTabModal() {
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.value = value;
+    cb.checked = tabSelected.has(value);
+    cb.onchange = () => {
+      if (cb.checked) tabSelected.add(value);
+      else tabSelected.delete(value);
+    };
     lab.appendChild(cb);
     lab.appendChild(document.createTextNode(" " + label));
     box.appendChild(lab);
   };
-  mk("__whisper", "Whispers");
-  const chans = [...$("chanJoined").options].map((o) => o.value);
-  for (const c of chans) mk(c, c);
-  if (!chans.length)
-    $("tabMsg").textContent = "Join a channel first — or make a whispers tab.";
+  const mkHead = (label) => {
+    const h = document.createElement("div");
+    h.className = "whohead";
+    h.textContent = label;
+    box.appendChild(h);
+  };
+  if (tabCat === "chat") {
+    mkHead("Player Messages");
+    for (const s of TAB_SOURCES.filter((s) => s.cat === "chat")) mk(s.id, s.label);
+  } else if (tabCat === "global") {
+    mkHead("Channels");
+    const chans = joinedChanNames();
+    if (!chans.length) {
+      const d = document.createElement("div");
+      d.className = "muted";
+      d.textContent = "No channels joined yet — type one below.";
+      box.appendChild(d);
+    }
+    for (const c of chans) mk("chan:" + c.toLowerCase(), c);
+  } else {
+    let lastGroup = "";
+    for (const s of TAB_SOURCES.filter((s) => s.cat === "other")) {
+      if (s.group !== lastGroup) { mkHead(s.group); lastGroup = s.group; }
+      mk(s.id, s.label);
+    }
+  }
 }
 $("btnAddTab").onclick = () => {
   renderTabModal();
@@ -453,23 +662,43 @@ $("tabModal").addEventListener("click", (e) => {
   if (e.target.id === "tabModal") $("tabModal").classList.add("hidden");
 });
 $("btnTabCreate").onclick = () => {
-  const checked = [...$("tabChannels").querySelectorAll("input:checked")]
-    .map((i) => i.value);
+  const checked = [...tabSelected];
   const msg = $("tabMsg");
   if (!checked.length) { msg.textContent = "Tick at least one box."; return; }
   let name = $("tabName").value.trim();
-  if (!name)
-    name = checked.length === 1 && checked[0] !== "__whisper"
-      ? checked[0] : checked.join(" + ");
-  if (!tabByName(name)) tabs.push({ name, channels: checked });
+  if (!name) {
+    const labels = checked.map((v) => v.startsWith("chan:")
+      ? v.slice(5) : ((SOURCE_BY_ID[v] || {}).label || v));
+    name = labels.length === 1 ? labels[0] : labels.slice(0, 3).join(" + ");
+  }
+  if (!tabByName(name)) tabs.push({ name, sources: checked });
   activeTab = name;
   $("tabModal").classList.add("hidden");
   renderTabs(); filterFeed();
 };
 function note(text, kind) {
-  feed.appendChild(lineEl({ ts: Date.now() / 1000, kind: kind || "system", text }));
+  feed.appendChild(lineEl({ ts: Date.now() / 1000, kind: kind || "system", ctype: 0, text }));
   feed.scrollTop = feed.scrollHeight;
 }
+try {
+  $("tsFormat").value = tsFormat;
+} catch { }
+$("tsFormat").addEventListener("change", () => {
+  tsFormat = $("tsFormat").value;
+  try { localStorage.setItem("ygg_ts", tsFormat); } catch { }
+  refreshTimestamps();
+});
+for (const [id, cat] of [["tabCatChat", "chat"], ["tabCatGlobal", "global"], ["tabCatOther", "other"]])
+  $(id).onclick = () => { tabCat = cat; paintTabModal(); };
+$("btnTabAddChan").onclick = () => {
+  const v = $("tabCustomChan").value.trim();
+  if (!v) return;
+  if (!tabCustomChans.includes(v)) tabCustomChans.push(v);
+  tabSelected.add("chan:" + v.toLowerCase());
+  $("tabCustomChan").value = "";
+  if (tabCat !== "global") tabCat = "global";
+  paintTabModal();
+};
 async function refreshStatus() {
   try {
     const s = await (await fetch("/api/status")).json();
@@ -753,7 +982,7 @@ $("btnDown").onclick = () => feed.scrollBy({ top: feed.clientHeight * 0.9 });
 $("btnLogout").onclick = async () => {
   await api("/api/logout");
   online = false; sinceId = 0; feed.innerHTML = "";
-  tabs = [{ name: "All", channels: null }]; activeTab = "All";
+  tabs = [{ name: "General", sources: null }]; activeTab = "General";
   lastWho = null; lastChan = null;
   $("whoResults").innerHTML = "";
   $("whoResults").classList.add("hidden");
