@@ -1,8 +1,6 @@
-<p align="center">
-<img src="docs/title.png" width="600" alt="WoW Chat Client">
-</p>
+# <p align="center"><img src="docs/title.png" width="600" alt="WoW Chat Client"></p>
 
-Chat with your characters on any WotLK 3.3.5a private server — no game
+Chat with your characters on any WotLK 3.3.5a private server - no game
 client needed. Log in as a real character and talk in guild, party,
 channels and whispers, from the app or any browser.
 
@@ -19,8 +17,7 @@ Click an icon above for the latest build (rebuilt on every commit), or
 
 ## What you can do
 
-- Log in as any of your characters: account → realm → character, just
-  like the game client.
+- Log in anywhere, anytime. Custom server, realm and character selection supported.
 - Chat everywhere: Say, Yell, Party, Guild, Officer, Raid, Battleground,
   Whisper, and custom channels.
 - Speak your faction tongue automatically (Common / Orcish by race), or
@@ -37,7 +34,7 @@ Click an icon above for the latest build (rebuilt on every commit), or
 
 ## Run it on your own server
 
-Prefer hosting it yourself? Grab `wow-chat-server-linux` from the
+Prefer hosting it on your own website? Grab `wow-chat-server-linux` from the
 release, or run from source on any machine and open
 `http://<your-server>:5950` from any browser — desktop or phone.
 
@@ -48,17 +45,17 @@ python3 desktop.py   # app window — or: python3 run.py  (browser UI on :5950)
 ```
 
 Your account password is only ever used for the login handshake, kept in
-memory, and wiped on logout — never written to disk.
+memory, and wiped on logout. Nothing is written server-side or stored to disk.
 
 ## If login fails
 
-- `cannot resolve ...` — wrong hostname or no DNS.
-- `connection refused` — wrong host/port, or the authserver is down.
+- `cannot resolve ...`: Wrong hostname or no DNS.
+- `connection refused`: Wrong host/port, or the authserver is down.
 - Unknown account vs wrong password: a bad name fails fast, a bad
   password fails at the proof step. Note some servers answer both the
-  same way — and repeated wrong passwords can trigger `WrongPass` IP
+  same way, and repeated wrong passwords can trigger `WrongPass` IP
   bans server-side.
-- `WOW_FAIL_VERSION_INVALID` — the server rejects this client build
+- `WOW_FAIL_VERSION_INVALID`: the server rejects this client build
   (`AcceptedClientBuilds` / `StrictVersionCheck` server-side).
 
 ## Limitations
