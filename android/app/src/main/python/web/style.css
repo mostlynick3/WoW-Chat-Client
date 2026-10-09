@@ -149,6 +149,8 @@ button:disabled { opacity: .5; cursor: wait; }
 .wowbtn { background: linear-gradient(180deg, #5a5a60, #333338); color: #e8e8e8; }
 .wowbtn:hover { filter: brightness(1.2); }
 .wowbtn-red.small { font-size: 13px; padding: 4px 18px; }
+/* realm selection: Back left, Okay right, same row */
+#pane2 .row #btnChars { margin-left: auto; }
 /* connecting buttons stay fully opaque — text change + un-clickable only */
 .wowbtn-red:disabled, .wowbtn:disabled { opacity: 1; cursor: wait; }
 .wowcheck { display: block; text-align: center; color: #ffd100; font-size: 14px; margin-top: 12px;
