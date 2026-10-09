@@ -156,7 +156,7 @@ button:disabled { opacity: .5; cursor: wait; }
 .wowcheck { display: block; text-align: center; color: #ffd100; font-size: 14px; margin-top: 12px;
   text-shadow: 1px 1px 2px #000; }
 .wowcheck input { accent-color: #ffd100; width: auto; }
-.wowscreen .msg { display: block; margin-top: 8px; }
+.wowscreen .msg { display: block; margin-top: 8px; text-align: center; }
 .wowframe-title { text-align: center; color: #ffd100; font-size: 18px;
   background: linear-gradient(180deg, #3a3a40, #232327);
   border: 1px solid #6a6a70; border-radius: 6px; padding: 4px;
