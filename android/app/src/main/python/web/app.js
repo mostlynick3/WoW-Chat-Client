@@ -187,6 +187,8 @@ function showChat() {
   $("loginView").classList.add("hidden");
   $("chatView").classList.remove("hidden");
   document.body.classList.add("inchat");
+  $("chatView").classList.remove("menu-collapsed");
+  $("gameMenu").classList.remove("open");
 }
 /* Click a player name anywhere to whisper them. */
 function whisperTo(name) {
@@ -860,10 +862,26 @@ $("btnSend").onclick = send;
 $("text").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
 /* channel modal: fields + join/leave/members live here, not the menu */
 $("btnChanOpen").onclick = () => $("chanModal").classList.remove("hidden");
-$("btnMenuToggle").onclick = () => {
-  $("chatView").classList.toggle("menu-collapsed");
-  $("gameMenu").classList.toggle("open");
-};
+const mqMobile = window.matchMedia("(max-width: 860px)");
+function expandMenu() {
+  $("chatView").classList.remove("menu-collapsed");
+  if (mqMobile.matches) $("gameMenu").classList.add("open");
+}
+function toggleMenu() {
+  const cv = $("chatView"), gm = $("gameMenu");
+  if (cv.classList.contains("menu-collapsed")) { expandMenu(); return; }
+  // Mobile keeps its dropdown: title-only -> open -> fully hidden.
+  if (mqMobile.matches) {
+    if (gm.classList.contains("open")) {
+      gm.classList.remove("open");
+      cv.classList.add("menu-collapsed");
+    } else gm.classList.add("open");
+    return;
+  }
+  cv.classList.add("menu-collapsed");
+}
+$("btnMenuToggle").onclick = toggleMenu;
+$("btnMenuTab").onclick = expandMenu;
 $("btnChanClose").onclick = () => $("chanModal").classList.add("hidden");
 $("chanModal").addEventListener("click", (e) => {
   if (e.target.id === "chanModal") $("chanModal").classList.add("hidden");

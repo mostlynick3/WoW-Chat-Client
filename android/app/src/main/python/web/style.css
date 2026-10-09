@@ -199,12 +199,11 @@ body.inchat .chatlayout { height: calc(100vh - 24px); align-items: stretch; }
 body.inchat .chatframe { min-height: 0; height: 100%; }
 body.inchat .feedwrap { flex: 1; min-height: 0; }
 body.inchat #feed { min-height: 0; max-height: none; }
-/* collapsed sidebar: narrow toggle strip on the right */
-.chatlayout.menu-collapsed { grid-template-columns: 1fr 48px; }
-.chatlayout.menu-collapsed .gamemenu .menubody,
-.chatlayout.menu-collapsed .gamemenu .menuid { display: none; }
-.chatlayout.menu-collapsed .gamemenu .menutitle::after { content: " ◂"; }
-.chatlayout:not(.menu-collapsed) .gamemenu .menutitle::after { content: " ▸"; }
+/* collapsed sidebar: menu hides, a Menu tab flush right reopens it.
+   The tab hidden while the menu is expanded. */
+.chatlayout.menu-collapsed { grid-template-columns: 1fr; }
+.chatlayout.menu-collapsed .gamemenu { display: none; }
+.chatlayout:not(.menu-collapsed) .menutab { display: none; }
 @media (max-width: 860px) { .chatlayout { grid-template-columns: 1fr; } }
 .charname { font-size: 19px; font-weight: 750; }
 .badges { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
@@ -219,7 +218,16 @@ body.inchat #feed { min-height: 0; max-height: none; }
   border-radius: 6px; padding: 0; min-height: 60vh; display: flex; flex-direction: column;
   font-family: "Friz Quadrata", "Trebuchet MS", Verdana, system-ui, sans-serif; }
 .tabbar { display: flex; align-items: flex-end; gap: 4px; padding: 6px 8px 0; }
-.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+/* tab strip scrolls horizontally when crowded; add/menu buttons keep
+   reserved space at the right and are never pushed out */
+.tabs { display: flex; gap: 4px; flex: 1 1 auto; flex-wrap: nowrap;
+  overflow-x: auto; min-width: 0; scrollbar-width: thin; }
+.tabs .tab { flex: none; }
+.tabadd { flex: none; }
+.menutab { flex: none; font: inherit; font-size: 14px; color: #ffd100;
+  background: #1a1a1d; border: 1px solid #ffd100; border-bottom: none;
+  border-radius: 6px 6px 0 0; padding: 4px 14px; cursor: pointer;
+  text-shadow: 1px 1px 2px #000; }
 .tab { font: inherit; font-size: 14px; color: #ffd100; background: #1a1a1d;
   border: 1px solid #4a4a50; border-bottom: none; border-radius: 6px 6px 0 0;
   padding: 4px 14px; cursor: pointer; text-shadow: 1px 1px 2px #000; }
@@ -303,8 +311,6 @@ body.inchat #feed { min-height: 0; max-height: none; }
   /* menu moves above the chat and collapses into a dropdown */
   .gamemenu { order: -1; }
   .gamemenu .menutitle { cursor: pointer; }
-  .gamemenu .menutitle::after { content: " ▾"; }
-  .gamemenu.open .menutitle::after { content: " ▴"; }
   .gamemenu .menubody { display: none; }
   .gamemenu.open .menubody { display: grid; }
 }
