@@ -156,6 +156,17 @@ jobs:
       - name: refresh bundled python copy
         shell: bash
         run: bash build/sync-android.sh
+      - name: stamp android build version
+        # Same baked-in identity as the desktop build (see /api/version):
+        # without this the APK reports sha "dev" and the in-app update
+        # check stays silent.
+        shell: bash
+        run: |
+          cat > android/app/src/main/python/app/build_info.py <<EOF
+          BUILD_NUMBER = ${{ github.run_number }}
+          BUILD_SHA = "${{ github.sha }}"
+          BUILD_DATE = "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          EOF
       - name: build debug APK
         shell: bash
         working-directory: android
