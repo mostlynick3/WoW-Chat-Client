@@ -109,7 +109,9 @@ def main():
     # Blocks on the GTK main loop; returns when the window closes.
     webview.start()
     if state["fell_back"]:
-        _serve_forever_browser(url)
+        # Never auto-open a browser here: the user already has our
+        # window (blank) and didn't ask for a tab.
+        _serve_forever_browser(url, launch=False)
     # else: user closed the window -> exit with it.
 
 
@@ -134,12 +136,15 @@ def _watch_window(window, state: dict, url: str, wait: float = 25.0):
         pass
 
 
-def _serve_forever_browser(url: str):
-    try:
-        webbrowser.open(url)
-    except Exception as exc:
-        print(f"could not open a browser ({exc}); "
-              f"visit {url} manually")
+def _serve_forever_browser(url: str, launch: bool = True):
+    if launch:
+        try:
+            webbrowser.open(url)
+        except Exception as exc:
+            print(f"could not open a browser ({exc}); "
+                  f"visit {url} manually")
+    else:
+        print(f"serving at {url} — open it in a browser")
     try:
         while True:
             time.sleep(3600)

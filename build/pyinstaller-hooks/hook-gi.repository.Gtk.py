@@ -1,11 +1,10 @@
 # PyInstaller hook for gi.repository.Gtk (extends the stock hook).
 #
 # Additionally collects the WebKit2 typelib data — no stock hook covers
-# it, and the chat window needs it. Provider libs come along, minus the
-# dlopen-only media/codec tail (libavcodec, x265, ...): those arrive via
-# the gstreamer provider closure but only implement audio/video
-# playback, which a chat window never uses. gstreamer's CORE libs stay —
-# libwebkit2gtk links them directly (see ldd).
+# it, and the chat window needs it. Engine .so files are deliberately
+# NOT collected (see hook body): they must come from the host system.
+# gstreamer's media/codec tail is filtered for the Gtk branch the same
+# way (chat has no audio/video); its directly-linked CORE libs stay.
 #
 # NOTE: bulk theme/icon/plugin trimming is NOT done here — that comes
 # from the spec's hooksconfig (gi.icons/themes, gstreamer.include_plugins),
@@ -38,7 +37,16 @@ def hook(hook_api):
         if not module_info.available:
             continue
         b, d, h = module_info.collect_typelib_data()
-        binaries += [x for x in b if _keep_binary(x[0])]
+        if namespace == "WebKit2":
+            # Engine libs (.so) come from the HOST system at runtime so
+            # the UI process and the system helper processes always use
+            # one consistent set (bundling the build distro's engine next
+            # to the host's helpers blanks the page). Typelibs + imports
+            # are version-tolerant data and stay bundled.
+            b = []
+        else:
+            b = [x for x in b if _keep_binary(x[0])]
+        binaries += b
         datas += d
         hiddenimports += h
     hook_api.add_datas(datas)
