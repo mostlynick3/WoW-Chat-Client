@@ -65,7 +65,7 @@
   <!-- ============ CHAT (in-game style: frame left, menu right) ============ -->
   <section id="chatView" class="hidden chatlayout">
     <section class="chatframe">
-      <div class="tabbar"><div id="tabs" class="tabs"></div><button id="btnAddTab" class="tabadd" title="New tab">+</button><button id="btnMenuTab" class="menutab hidden" title="Menu">Menu</button></div>
+      <div class="tabbar"><div id="tabs" class="tabs"></div><button id="btnAddTab" class="tabadd" title="New tab">+</button><button id="btnMenuTab" class="menutab" title="Menu">Menu</button></div>
       <div class="feedwrap">
         <div id="feed"></div>
         <div class="feednav">
@@ -119,7 +119,6 @@
 
   <div id="whoModal" class="hidden">
     <div class="whobox">
-      <button class="modalx" data-close="whoModal" title="Close">×</button>
       <div class="wowframe-title">Who List</div>
       <label>Name filter<input id="whoName" placeholder="part of a name"></label>
       <div class="row"><button id="btnWho" class="wowbtn-red">Search</button><button id="btnWhoClose" class="wowbtn">Close</button><span id="whoMsg" class="msg"></span></div>
@@ -129,7 +128,6 @@
 
   <div id="chanModal" class="hidden">
     <div class="whobox">
-      <button class="modalx" data-close="chanModal" title="Close">×</button>
       <div class="wowframe-title">Channel</div>
       <label>Join<input id="chanName" placeholder="Channel name"></label>
       <label>Password<input id="chanPass" placeholder="optional"></label>
@@ -143,7 +141,6 @@
 
   <div id="langModal" class="hidden">
     <div class="whobox">
-      <button class="modalx" data-close="langModal" title="Close">×</button>
       <div class="wowframe-title">Language</div>
       <div id="langList" class="langlist"></div>
       <div class="row"><button id="btnLangClose" class="wowbtn">Close</button></div>
@@ -152,7 +149,6 @@
 
   <div id="tabModal" class="hidden">
     <div class="whobox tabconfig">
-      <button class="modalx" data-close="tabModal" title="Close">×</button>
       <div class="wowframe-title">General Config — New Tab</div>
       <label>Tab name<input id="tabName" placeholder="e.g. Guild + World"></label>
       <div class="tabcfg">

@@ -205,9 +205,6 @@ document.addEventListener("click", (e) => {
   const el = e.target.closest ? e.target.closest("[data-whisper]") : null;
   if (el && el.dataset.whisper) whisperTo(el.dataset.whisper);
 });
-document.querySelectorAll(".modalx").forEach((b) => {
-  b.onclick = () => $(b.dataset.close).classList.add("hidden");
-});
 /* Update banner on the login page: shown only when a newer build is
    pending on the releases page, otherwise stays hidden (and silent —
    including offline or dev builds with no baked-in version).
@@ -493,7 +490,38 @@ function tabMatches(tab, d) {
   return true;
 }
 /* In-game line format: [time] [prefix] sender: text — no badge chips.
-   Colors come from .line.<kind> CSS, matching the default client. */
+   Colors pin to the General Config swatches (Chat / Global Channels /
+   Other): one color per (kind, ctype), set inline so combat/misc types
+   that share kind "system" still get their own color. */
+function wowColor(kind, ctype) {
+  const ct = Number(ctype) || 0;
+  if (kind === "system") return {
+    0x19: "#ff2020", 0x1A: "#8080ff", 0x1B: "#40ff40", 0x1C: "#ffff00",
+    0x1D: "#8080ff", 0x1E: "#ffffff", 0x1F: "#8080ff", 0x20: "#8080ff",
+    0x21: "#8080ff", 0x22: "#ffff00", 0x23: "#8080ff",
+    0x2B: "#ffff00", 0x2E: "#ffff00", 0x32: "#ffff00", "-1": "#ff2020",
+  }[ct] || "#ffff00";
+  if (kind === "bg") {
+    if (ct === 0x25) return "#00aaff";
+    if (ct === 0x26) return "#ff0000";
+    if (ct === 0x2D) return "#ffc080";
+    return "#ff7f00";
+  }
+  if (kind === "party") return ct === 0x33 ? "#7fb8ff" : "#aaaaff";
+  if (kind === "raid") return ct === 0x27 ? "#ff4d1e" : "#ff7f00";
+  return {
+    say: "#ffffff", emote: "#ff8040", yell: "#ff4040",
+    guild: "#40ff40", officer: "#40bf40", whisper: "#ff80ff",
+    battlenet: "#7fb8ff", raid_warning: "#ff4d1e",
+    channel: "#ffc0c0", notice: "#c08080",
+    achievement: ct === 0x31 ? "#40ff40" : "#ffff00",
+    monster_say: "#ffffc0", monster_party: "#ffffc0",
+    monster_emote: "#ff8040", monster_yell: "#ff4040",
+    monster_whisper: "#ff80ff",
+    boss_emote: "#ffff00", boss_whisper: "#ffff00",
+    afk: "#808080", dnd: "#808080",
+  }[kind] || "#ffffff";
+}
 function lineEl(m) {
   const div = document.createElement("div");
   const kind = m.kind || "system";
@@ -503,6 +531,7 @@ function lineEl(m) {
   const ct = (m.ctype === undefined || m.ctype === null) ? 0 : Number(m.ctype);
   div.dataset.ctype = String(Number.isNaN(ct) ? 0 : ct);
   div.dataset.ts = String(m.ts || 0);
+  div.style.color = wowColor(kind, div.dataset.ctype);
   const ts = fmtTime(m.ts || 0);
   const timeHtml = ts ? `<span class="time">${esc(ts)}</span>` : `<span class="time" style="display:none"></span>`;
   const txt = fmt(m.text || "");

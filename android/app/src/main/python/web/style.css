@@ -257,25 +257,25 @@ body.inchat #feed { min-height: 0; max-height: none; }
 .line.yell .prefix, .line.yell .sender, .line.yell .txt { color: #ff4040; }
 .line.emote .prefix, .line.emote .sender, .line.emote .txt { color: #ff8040; }
 .line.guild .prefix, .line.guild .sender, .line.guild .txt { color: #40ff40; }
-.line.officer .prefix, .line.officer .sender, .line.officer .txt { color: #40c040; }
-.line.party .prefix, .line.party .sender, .line.party .txt { color: #7fafff; }
+.line.officer .prefix, .line.officer .sender, .line.officer .txt { color: #40bf40; }
+.line.party .prefix, .line.party .sender, .line.party .txt { color: #aaaaff; }
 .line.raid .prefix, .line.raid .sender, .line.raid .txt { color: #ff7f00; }
-.line.raid_warning .prefix, .line.raid_warning .txt { color: #ff4400; font-weight: 700; }
+.line.raid_warning .prefix, .line.raid_warning .txt { color: #ff4d1e; font-weight: 700; }
 .line.bg .prefix, .line.bg .sender, .line.bg .txt { color: #ff7f00; }
 .line.whisper .prefix, .line.whisper .sender, .line.whisper .txt { color: #ff80ff; }
 .line.whisper .to { color: #ff80ff; }
-.line.channel .prefix, .line.channel .sender { color: #e0a0a0; }
-.line.channel .txt { color: #e0a0a0; }
-.line.channel .chan { color: #e0a0a0; }
+.line.channel .prefix, .line.channel .sender { color: #ffc0c0; }
+.line.channel .txt { color: #ffc0c0; }
+.line.channel .chan { color: #ffc0c0; }
 .line.system .txt { color: #ffff00; }
-.line.notice .txt, .line.notice .chan { color: #ffff00; }
+.line.notice .txt, .line.notice .chan { color: #c08080; }
 .line.achievement .txt { color: #ffff00; }
-.line.battlenet .prefix, .line.battlenet .sender, .line.battlenet .txt { color: #00e5ff; }
+.line.battlenet .prefix, .line.battlenet .sender, .line.battlenet .txt { color: #7fb8ff; }
 .line.monster_say .prefix, .line.monster_say .sender, .line.monster_say .txt,
-.line.monster_yell .prefix, .line.monster_yell .sender, .line.monster_yell .txt,
-.line.monster_party .prefix, .line.monster_party .sender, .line.monster_party .txt,
-.line.monster_whisper .prefix, .line.monster_whisper .sender, .line.monster_whisper .txt,
-.line.monster_emote .prefix, .line.monster_emote .sender, .line.monster_emote .txt { color: #ffeb9c; }
+.line.monster_party .prefix, .line.monster_party .sender, .line.monster_party .txt { color: #ffffc0; }
+.line.monster_yell .prefix, .line.monster_yell .sender, .line.monster_yell .txt { color: #ff4040; }
+.line.monster_whisper .prefix, .line.monster_whisper .sender, .line.monster_whisper .txt { color: #ff80ff; }
+.line.monster_emote .prefix, .line.monster_emote .sender, .line.monster_emote .txt { color: #ff8040; }
 .line.boss_emote .prefix, .line.boss_emote .sender, .line.boss_emote .txt,
 .line.boss_whisper .prefix, .line.boss_whisper .sender, .line.boss_whisper .txt { color: #ffd700; }
 .line.afk .prefix, .line.afk .txt, .line.dnd .prefix, .line.dnd .txt { color: #808080; font-style: italic; }
@@ -283,12 +283,6 @@ body.inchat #feed { min-height: 0; max-height: none; }
 /* clickable player names (feed, who list, channel members) */
 .sender.clickable, .whoname { cursor: pointer; text-decoration: underline dotted; }
 .sender.clickable:hover, .whoname:hover { filter: brightness(1.3); }
-/* modal header close button */
-.whobox { position: relative; }
-.modalx { position: absolute; top: 8px; right: 8px; width: auto; padding: 2px 10px;
-  font-size: 16px; line-height: 1.2; color: #ffd100; background: #1a1a1d;
-  border: 1px solid #4a4a50; border-radius: 6px; cursor: pointer; }
-.modalx:hover { border-color: #ffd100; }
 .tslabel { display: grid; gap: 5px; }
 .tslabel select { width: 100%; }
 
