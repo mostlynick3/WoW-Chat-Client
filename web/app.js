@@ -772,6 +772,11 @@ async function refreshStatus() {
         "Backend connection lost — please log in again.";
       console.error("[ygg] backend unreachable or restarted; session lost");
     }
+    // Activity was recreated while the background service kept the
+    // session online: resume the chat view instead of showing login.
+    if (online && !$("loginView").classList.contains("hidden")) {
+      showChat();
+    }
     // Backend lost mid-wizard (e.g. server booted an idle connection):
     // don't leave the user stranded on realm/character select.
     if (s.state === "offline" &&

@@ -1,24 +1,30 @@
 package com.mostlynick3.wowchat;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-
-import com.chaquo.python.Python;
-import com.chaquo.python.android.AndroidPlatform;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
-/** Single-activity host: runs the Python backend on localhost:5950 and
- *  shows the same web UI as the desktop client in a WebView. */
+/** Single-activity host: the Python backend runs in ChatBackendService on
+ *  localhost:5950 and the same web UI as the desktop client is shown in a
+ *  WebView. The service outlives this Activity so backgrounding the app
+ *  does not stop the chat connection. */
 public class MainActivity extends Activity {
     private static final String URL = "http://127.0.0.1:5950/";
     private static final int PORT = 5950;
-    private static boolean sPythonStarted = false;
 
     private WebView mWebView;
 
@@ -32,20 +38,44 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         mWebView.setWebViewClient(new WebViewClient());
-        startBackend();
+        startBackendService();
+        requestBackgroundPermissions();
         waitForServerThenLoad();
     }
 
-    /** Flask app.run() blocks, so the backend lives on its own thread. */
-    private void startBackend() {
-        final Activity self = this;
-        new Thread(() -> {
-            if (!sPythonStarted) {
-                Python.start(new AndroidPlatform(self));
-                sPythonStarted = true;
-            }
-            Python.getInstance().getModule("android_main").callAttr("start");
-        }).start();
+    private void startBackendService() {
+        Intent service = new Intent(this, ChatBackendService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(service);
+        } else {
+            startService(service);
+        }
+    }
+
+    /** The foreground notification needs POST_NOTIFICATIONS on 13+, and
+     *  Doze can still suspend the network unless this app is exempt from
+     *  battery optimization. Ask once. */
+    private void requestBackgroundPermissions() {
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+        }
+
+        PowerManager pm = getSystemService(PowerManager.class);
+        if (pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            return;
+        }
+        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        if (prefs.getBoolean("asked_battery_exemption", false)) {
+            return;
+        }
+        prefs.edit().putBoolean("asked_battery_exemption", true).apply();
+        Intent intent = new Intent(
+                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        startActivity(intent);
     }
 
     /** The server needs a moment (interpreter + imports); poll the port
