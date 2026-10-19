@@ -48,6 +48,21 @@ def resolve_ipv4(host: str, timeout: float = 8.0, log=None) -> str:
     return ip
 
 
+def _enable_keepalive(sock: socket.socket):
+    """Let the kernel detect a silently dead peer (network dropped while
+    the app was suspended) instead of blocking on recv forever."""
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    for opt_name, value in (("TCP_KEEPIDLE", 30), ("TCP_KEEPALIVE", 30),
+                            ("TCP_KEEPINTVL", 10), ("TCP_KEEPCNT", 3)):
+        opt = getattr(socket, opt_name, None)
+        if opt is None:
+            continue
+        try:
+            sock.setsockopt(socket.IPPROTO_TCP, opt, value)
+        except OSError:
+            pass
+
+
 def connect_tcp(host: str, port: int, timeout: float = 8.0,
                 log=None) -> socket.socket:
     """Connect with bounded DNS + bounded TCP handshake."""
@@ -65,6 +80,7 @@ def connect_tcp(host: str, port: int, timeout: float = 8.0,
             f"auth/world server not listening there?")
     except OSError as exc:
         raise ConnectionError(f"cannot reach {host} ({ip}:{port}): {exc}")
+    _enable_keepalive(s)
     if log:
         log(f"net: TCP {ip}:{port} open ({time.time() - t0:.1f}s)")
     return s

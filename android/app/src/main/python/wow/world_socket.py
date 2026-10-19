@@ -135,8 +135,11 @@ class WorldClient:
         self._log(f"world: connecting to {host}:{port} ...")
         self.sock = netmod.connect_tcp(host, port, timeout,
                                        lambda m: self._log(m))
-        self.sock.settimeout(90.0)
         self._read_challenge()
+        # Steady state is blocking: a recv timeout only means "no packet
+        # yet" (e.g. the phone was suspended), not that the session died.
+        # SO_KEEPALIVE from connect_tcp detects a truly dead peer.
+        self.sock.settimeout(None)
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
 
