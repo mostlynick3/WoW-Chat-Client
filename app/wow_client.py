@@ -296,7 +296,6 @@ class WoWChatManager:
             self.state = "chars"
             self.status = f"select a character on {target['name']}"
             self._dbg(f"world: ready, {len(chars)} character(s)")
-            # World session exists -> app becomes persistent on Android.
             set_session_active(True, self.realm_name)
             # Keepalive starts NOW, not on entering the world: the server
             # boots idle char-select connections, which used to look like
@@ -405,8 +404,7 @@ class WoWChatManager:
                 if self.world:
                     self.world.ping()
                     self.world.keep_alive()
-                    # Re-assert persistence so a recreated service (or a
-                    # failed demotion) cannot weld the app shut either way.
+                    # Re-assert so a recreated service never stays pinned.
                     set_session_active(True, self.character or self.realm_name,
                                        self.realm_name)
             except Exception:

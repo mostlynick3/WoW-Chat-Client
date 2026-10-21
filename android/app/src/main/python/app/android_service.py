@@ -1,8 +1,6 @@
-"""Tell the Android ChatBackendService whether a world session is active.
+"""Notify ChatBackendService of session state; no-op without Java.
 
-The service is a plain background start, so a logged-out app is killable
-(swipe away closes it). Only an active session is promoted to foreground.
-On desktop (no Chaquopy/Java runtime) this is a no-op."""
+Logged-out apps stay closable; only an active session is foreground."""
 from __future__ import annotations
 
 

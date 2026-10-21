@@ -14,12 +14,8 @@ import android.os.PowerManager;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 
-/** Hosts the Python backend on localhost:5950. Started as a plain service
- *  so a logged-out app is fully closable (swipe away kills the process —
- *  nothing sticky, no foreground notification, no wake lock). Only while
- *  a world session exists does Python promote it to foreground via
- *  setSessionActive(), which then keeps the chat connection alive in the
- *  background. */
+/** Hosts the Python backend on localhost:5950. A logged-out app stays
+ *  closable; Python promotes the service to foreground only on session. */
 public class ChatBackendService extends Service {
     private static final String CHANNEL_ID = "wowchat_backend";
     private static final int NOTIFICATION_ID = 1;
