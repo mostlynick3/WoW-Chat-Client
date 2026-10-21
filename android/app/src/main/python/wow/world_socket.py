@@ -322,6 +322,28 @@ class WorldClient:
         if opcode == int(Opcode.SMSG_LOGOUT_COMPLETE):
             self.sync_events.put({"t": "logout_complete"})
             return
+        if opcode == int(Opcode.SMSG_GROUP_LIST):
+            detail = parse_group_list(payload, self.player_guid)
+            if detail is not None:
+                self.events.put({"t": "group_list", "detail": detail})
+            return
+        if opcode == int(Opcode.SMSG_GROUP_DESTROYED):
+            self.events.put({"t": "group_end"})
+            return
+        if opcode == int(Opcode.SMSG_GUILD_ROSTER):
+            detail = parse_guild_roster(payload)
+            if detail is not None:
+                self.events.put({"t": "guild_list", "detail": detail})
+            return
+        if opcode == int(Opcode.SMSG_GUILD_COMMAND_RESULT):
+            detail = parse_guild_command_result(payload)
+            if detail is not None:
+                self.events.put({"t": "guild_result", "detail": detail})
+            return
+        if opcode == int(Opcode.SMSG_GUILD_EVENT):
+            etype = payload[0] if payload else -1
+            self.events.put({"t": "guild_event", "detail": {"type": etype}})
+            return
         if opcode == int(Opcode.SMSG_COMPRESSED_UPDATE_OBJECT):
             return  # chat client ignores movement/object data
         # everything else: stash minimal info for debugging
@@ -331,6 +353,11 @@ class WorldClient:
     def request_char_enum(self):
         self.characters = []
         self._send(int(Opcode.CMSG_CHAR_ENUM), b"")
+
+    def request_guild_roster(self):
+        """Ask for SMSG_GUILD_ROSTER context; the server answers with
+        SMSG_GUILD_COMMAND_RESULT (not-in-guild) when there is none."""
+        self._send(int(Opcode.CMSG_GUILD_ROSTER), b"")
 
     def player_login(self, guid: int, wait_verify: float = 20.0) -> dict:
         self.player_guid = guid
@@ -343,6 +370,10 @@ class WorldClient:
         if ev.get("t") != "login_verify":
             self.sync_events.put(ev)
             raise TimeoutError("no SMSG_LOGIN_VERIFY_WORLD")
+        try:
+            self.request_guild_roster()
+        except Exception:
+            self._log("guild roster request failed")
         return ev["detail"]
 
     def ping(self):
@@ -430,6 +461,101 @@ class WorldClient:
 
 
 # -- parsers -----------------------------------------------------------
+
+def parse_guild_roster(payload: bytes) -> dict | None:
+    """SMSG_GUILD_ROSTER (GuildPackets.cpp GuildRoster::Write).
+
+    u32 memberCount, cstr MOTD, cstr info, u32 rankCount, rank entries
+    (u32 flags, u32 gold, 6x u32, 6x u32), per member u64 guid,
+    u8 status, cstr name, i32 rankId, u8 level/class/gender, i32 area,
+    [f32 lastSave if status==0], cstr note, cstr officerNote.
+    """
+    GUILD_BANK_MAX_TABS = 6
+    try:
+        r = Reader(payload)
+        member_count = r.u32()
+        r.cstr()  # MOTD
+        r.cstr()  # guild info text
+        rank_count = r.u32()
+        rank_rights = []
+        for _ in range(rank_count):
+            flags = r.u32()
+            r.u32()
+            for _ in range(GUILD_BANK_MAX_TABS):
+                r.u32()
+                r.u32()
+            rank_rights.append(flags)
+        members = []
+        for _ in range(member_count):
+            m_guid = r.u64()
+            status = r.u8()
+            name = r.cstr()
+            rank_id = r.u32()
+            r.u8()   # level
+            r.u8()   # class
+            r.u8()   # gender
+            r.u32()  # area id
+            if not status:
+                r.f32()  # last save
+            r.cstr()  # public note
+            r.cstr()  # officer note
+            members.append((m_guid, name, rank_id))
+    except ValueError:
+        return None
+    return {"members": members, "rank_rights": rank_rights}
+
+
+def parse_guild_command_result(payload: bytes) -> dict | None:
+    """SMSG_GUILD_COMMAND_RESULT: i32 command, cstr param, i32 result."""
+    try:
+        r = Reader(payload)
+        command = r.u32()
+        r.cstr()
+        result = r.u32()
+    except ValueError:
+        return None
+    return {"command": command, "result": result}
+
+
+def parse_group_list(payload: bytes, self_guid: int = 0) -> dict | None:
+    """SMSG_GROUP_LIST (Group.cpp SendUpdateToPlayer).
+
+    u8 groupType, u8 myGroup, u8 myFlags, u8 myRole, [LFG: u8 u32],
+    u64 groupGuid, u32 counter, u32 memberCount-1, per member:
+    cstr name, u64 guid, u8 online, u8 group, u8 flags, u8 roles,
+    u64 leaderGuid, [if members: u8 loot, [u64 master], u8 threshold,
+    u8 dungeonDiff, u8 raidDiff, u8 heroic].
+    """
+    try:
+        r = Reader(payload)
+        group_type = r.u8()
+        r.u8()  # own subgroup
+        my_flags = r.u8()
+        r.u8()  # own role
+        if group_type & 0x08:  # GROUPTYPE_LFG: save-status + dungeon id
+            r.u8()
+            r.u32()
+        r.u64()  # group guid
+        r.u32()  # send counter
+        member_count = r.u32()  # "members - 1"
+        for _ in range(member_count):
+            r.cstr()
+            r.u64()
+            r.u8()
+            r.u8()
+            r.u8()
+            r.u8()
+        leader_guid = r.u64()
+        raid = bool(group_type & 0x02)   # GROUPTYPE_RAID
+        in_bg = bool(group_type & 0x01)  # GROUPTYPE_BG (incl. BG raid)
+        aid = bool(my_flags & 0x01)      # MEMBER_FLAG_ASSISTANT
+        return {"members": member_count + 1, "raid": raid,
+                "battleground": in_bg,
+                "leader": self_guid != 0 and leader_guid == self_guid,
+                "assistant": aid}
+    except ValueError:
+        return None
+
 
 def parse_char_enum(payload: bytes) -> list[CharacterInfo]:
     # Layout: Player::BuildEnumData. Tail per char after guild u32:

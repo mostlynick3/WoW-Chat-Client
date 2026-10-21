@@ -760,6 +760,23 @@ $("btnTabAddChan").onclick = () => {
   if (tabCat !== "global") tabCat = "global";
   paintTabModal();
 };
+/** Send kinds hidden until in-game state grants access (context from
+ /api/status). Missing access data (old backend) keeps everything. */
+const SEND_ACCESS = {
+  party: "party", guild: "guild", officer: "officer", raid: "raid",
+  raid_leader: "raid_warning", raid_warning: "raid_warning",
+  battleground: "battleground",
+};
+function syncSendAccess(acc) {
+  const sel = $("kind");
+  if (!sel || !acc) return;
+  const cur = sel.value;
+  for (const [kid, akey] of Object.entries(SEND_ACCESS)) {
+    const opt = sel.querySelector(`option[value="${kid}"]`);
+    if (opt) opt.hidden = acc[akey] === false;
+  }
+  if (SEND_ACCESS[cur] && acc[SEND_ACCESS[cur]] === false) sel.value = "say";
+}
 async function refreshStatus() {
   try {
     const s = await (await fetch("/api/status")).json();
@@ -796,6 +813,7 @@ async function refreshStatus() {
         currentRace = s.race;
         currentLangs = s.languages || currentLangs;
       }
+      syncSendAccess(s.access);
     }
     // Debug stream -> browser console (DevTools, F12). Only new lines.
     if (s.debug) {

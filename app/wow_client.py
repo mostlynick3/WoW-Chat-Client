@@ -27,6 +27,18 @@ from wow.chat_defs import (
 )
 from wow.world_socket import ChatLine, WorldClient
 
+# Send kinds gated by in-game state, mapped to the access() key that
+# must be true for the kind to be usable.
+SEND_ACCESS = {
+    "party": "party",
+    "guild": "guild",
+    "officer": "officer",
+    "raid": "raid",
+    "raid_leader": "raid_warning",
+    "raid_warning": "raid_warning",
+    "battleground": "battleground",
+}
+
 # Forced-Universal fallback tuning. Scope: STOCK cores + Yggdrasil only.
 # Stock ChatHandler always rejects client-sent LANG_UNIVERSAL for normal
 # chat with SendNotification(LANG_UNKNOWN_LANGUAGE) -> SMSG_NOTIFICATION
@@ -55,6 +67,13 @@ class WoWChatManager:
         self.universal_verdict: bool | None = None
         self._probes: list[dict] = []  # in-flight universal sends
         self._accept_noted = False
+        # In-game context gating sendable kinds: guild membership comes
+        # from the roster response (None=unknown before it), group state
+        # from SMSG_GROUP_LIST / SMSG_GROUP_DESTROYED.
+        self.in_guild: bool | None = None
+        self.guild_rights: int = 0
+        self.group: dict | None = None
+        self._last_guild_refresh = 0.0
         self.auth: AuthClient | None = None
         self.world: WorldClient | None = None
         self.history: list[dict] = []
@@ -190,7 +209,27 @@ class WoWChatManager:
                 "universal": ("unknown" if self.universal_verdict is None
                               else "yes" if self.universal_verdict else "no"),
                 "addon_dropped": self.addon_dropped,
+                "access": self._access(),
             }
+
+    def _access(self) -> dict:
+        """Which gated send kinds are usable right now. Unknown states
+        (no roster/list yet) stay open so features never vanish on a
+        late or failed response."""
+        in_g = self.in_guild
+        g = self.group
+        officer = (False if in_g is False
+                   else True if in_g is None
+                   else bool(self.guild_rights & 0x00000008))
+        return {
+            "guild": in_g is not False,
+            "officer": officer,
+            "party": g is not None,
+            "raid": bool(g and g.get("raid")),
+            "raid_warning": bool(g and g.get("raid") and
+                                 (g.get("leader") or g.get("assistant"))),
+            "battleground": bool(g and g.get("battleground")),
+        }
 
     # -- lifecycle: 1) auth -> realms  2) realm -> characters  3) enter --
     def fetch_realms(self, auth_host: str, auth_port: int, username: str,
@@ -453,6 +492,33 @@ class WoWChatManager:
                         self._on_name_query(ev.get("detail", {}))
                     elif t == "notification":
                         self._on_notification(str(ev.get("text", "")))
+                    elif t == "group_list":
+                        with self._lock:
+                            self.group = ev.get("detail") or {}
+                    elif t == "group_end":
+                        with self._lock:
+                            self.group = None
+                    elif t == "guild_list":
+                        self._on_guild_list(ev.get("detail"))
+                    elif t == "guild_result":
+                        d = ev.get("detail") or {}
+                        # roster request answered with "not in a guild"
+                        if d.get("command") == 5 and d.get("result") == 9:
+                            with self._lock:
+                                self.in_guild = False
+                                self.guild_rights = 0
+                    elif t == "guild_event" and self.world:
+                        # join/leave/disband/rank events can change our
+                        # rights; refresh the roster at most every 5 s.
+                        etype = (ev.get("detail") or {}).get("type", -1)
+                        if etype in (1, 2, 3, 4, 5, 8, 10, 11):
+                            now = time.time()
+                            if now - self._last_guild_refresh > 5.0:
+                                self._last_guild_refresh = now
+                                try:
+                                    self.world.request_guild_roster()
+                                except Exception:
+                                    pass
                     elif t in ("logout_response", "logout_complete",
                                "login_verify"):
                         pass  # sync replies for WorldClient wait loops
@@ -476,10 +542,33 @@ class WoWChatManager:
             return self.language, False
         return int(lang), False
 
+    def _on_guild_list(self, detail: dict | None):
+        """SMSG_GUILD_ROSTER: find self, cache rank."""
+        if not detail:
+            return
+        self.in_guild = False
+        self.guild_rights = 0
+        me = next((m for m in detail.get("members", [])
+                   if m[0] == self.world.player_guid), None)
+        if me:
+            self.in_guild = True
+            rights = detail.get("rank_rights", [])
+            self.guild_rights = int(rights[int(me[2])] if me[2] < len(rights)
+                                    else 0)
+        kind = "in guild" if me else "no guild"
+        self._dbg(f"guild: {kind} (rank {me[2] if me else '?'})")
+        with self._lock:
+            self._note(f"Guild roster: {kind}.", "system")
+        # notify chat is already posted per line; roster itself need not
+        # produce a feed line beyond the system note above.
+
     def send(self, kind: str, text: str, target: str = "",
              channel: str = "", lang="auto") -> dict:
         if self.state != "online" or not self.world:
             return {"ok": False, "error": "not online"}
+        akey = SEND_ACCESS.get(kind)
+        if akey and not self._access().get(akey, True):
+            return {"ok": False, "error": f"{kind} chat is not available"}
         tongue, probe = self.resolve_lang(lang, kind)
         # Hard gate: a character can only use its racial tongues (plus an
         # explicitly forced Universal, which the server then judges).
@@ -706,6 +795,10 @@ class WoWChatManager:
         self.channels = []
         self.last_who = None
         self.last_chan = None
+        self.in_guild = None
+        self.guild_rights = 0
+        self.group = None
+        self._last_guild_refresh = 0.0
         # Drop chat history: a later login must never replay stale lines.
         self.history = []
         self._seq = 0
