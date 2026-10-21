@@ -15,7 +15,7 @@ import queue
 import threading
 import time
 
-from .android_service import set_session_active
+from .android_service import notify_chat, set_session_active
 from wow.auth_socket import AuthClient, AuthTokenRequired
 from wow.chat_defs import (
     SENDABLE,
@@ -139,6 +139,8 @@ class WoWChatManager:
             })
             if len(self.history) > self.history_limit:
                 del self.history[: len(self.history) - self.history_limit]
+        if self.state == "online":
+            notify_chat(line.kind, line.channel, line.sender, line.text)
         # Player chat carries guids, not names — resolve in background so
         # the feed shows names instead of guid:12345.
         if line.sender_guid and not line.sender:

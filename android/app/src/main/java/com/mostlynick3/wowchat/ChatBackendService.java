@@ -14,13 +14,27 @@ import android.os.PowerManager;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
 /** Hosts the Python backend on localhost:5950. A logged-out app stays
  *  closable; Python promotes the service to foreground only on session. */
 public class ChatBackendService extends Service {
     private static final String CHANNEL_ID = "wowchat_backend";
     private static final int NOTIFICATION_ID = 1;
+    private static final int NOTIFY_ID_BASE = 1000;
+    private static final int MAX_LINES_PER_CHANNEL = 5;
     private static boolean sBackendStarted = false;
+    private static boolean sSessionActive = false;
+    private static boolean sUiVisible = true;
     private static ChatBackendService sInstance;
+    private static final ConcurrentMap<String, Deque<String>> sLastLines =
+            new ConcurrentHashMap<>();
+    private static final Set<Integer> sPostedIds = ConcurrentHashMap.newKeySet();
 
     private PowerManager.WakeLock mWakeLock;
 
@@ -39,13 +53,90 @@ public class ChatBackendService extends Service {
         if (svc == null) {
             return;
         }
+        sSessionActive = active;
         if (active) {
             svc.startForegroundNotification(title, text);
             svc.acquireWakeLock();
         } else {
+            svc.clearChatNotifications();
             svc.releaseWakeLock();
             svc.stopForeground(Service.STOP_FOREGROUND_REMOVE);
         }
+    }
+
+    /** Called from MainActivity so alerts pause while the feed is open. */
+    public static void setUiVisible(boolean visible) {
+        sUiVisible = visible;
+    }
+
+    /** Called from Python (Chaquopy) for every chat line. */
+    public static void postNotification(String channel, String sender,
+                                        String text) {
+        ChatBackendService svc = sInstance;
+        if (svc == null || !sSessionActive || sUiVisible) {
+            return;
+        }
+        String clean = channel == null || channel.trim().isEmpty()
+                ? "General" : channel.trim();
+        String id = "chat_" + clean.toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9_]", "_");
+        svc.ensureChatChannel(id, "Chat: " + clean);
+        int notifId = NOTIFY_ID_BASE + Math.abs(clean.hashCode());
+        sPostedIds.add(notifId);
+
+        String lastLine;
+        Deque<String> lines =
+                sLastLines.computeIfAbsent(clean, k -> new ArrayDeque<>());
+        synchronized (lines) {
+            lines.addLast((sender == null || sender.isEmpty() ? "" : sender + ": ")
+                    + (text == null ? "" : text));
+            while (lines.size() > MAX_LINES_PER_CHANNEL) {
+                lines.removeFirst();
+            }
+            lastLine = lines.getLast();
+        }
+
+        Intent open = new Intent(svc, MainActivity.class);
+        open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent contentIntent = PendingIntent.getActivity(
+                svc, 0, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        Notification.Builder builder =
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(svc, id)
+                : new Notification.Builder(svc);
+        Notification notification = builder
+                .setSmallIcon(R.drawable.wow_w)
+                .setContentIntent(contentIntent)
+                .setAutoCancel(true)
+                .setContentTitle(clean)
+                .setContentText(lastLine)
+                .build();
+        NotificationManager nm = svc.getSystemService(NotificationManager.class);
+        nm.notify(notifId, notification);
+    }
+
+    /** One notification channel (Android category) per chat channel. */
+    private void ensureChatChannel(String id, String name) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+        NotificationChannel channel = new NotificationChannel(
+                id, name, NotificationManager.IMPORTANCE_DEFAULT);
+        channel.setDescription("New messages in " + name);
+        getSystemService(NotificationManager.class).createNotificationChannel(channel);
+    }
+
+    private void clearChatNotifications() {
+        sLastLines.clear();
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        for (Integer notifId : sPostedIds) {
+            try {
+                nm.cancel(notifId);
+            } catch (RuntimeException ignored) { }
+        }
+        sPostedIds.clear();
     }
 
     private void createNotificationChannel() {
