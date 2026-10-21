@@ -188,6 +188,7 @@ function showChat() {
   $("chatView").classList.remove("hidden");
   document.body.classList.add("inchat");
   $("chatView").classList.remove("menu-collapsed");
+  if (mqMobile.matches) $("chatView").classList.add("menu-collapsed");
   $("gameMenu").classList.remove("open");
 }
 /* Click a player name anywhere to whisper them. */
@@ -1067,7 +1068,7 @@ $("whoModal").addEventListener("click", (e) => {
 $("btnUp").onclick = () => feed.scrollBy({ top: -feed.clientHeight * 0.9 });
 $("btnDown").onclick = () => feed.scrollBy({ top: feed.clientHeight * 0.9 });
 $("btnLogout").onclick = async () => {
-  await api("/api/logout");
+  await api("/api/logout", {});
   online = false; sinceId = 0; feed.innerHTML = "";
   tabs = [{ name: "General", sources: null }]; activeTab = "General";
   lastWho = null; lastChan = null;
