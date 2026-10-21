@@ -14,27 +14,41 @@ import android.os.PowerManager;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 
-/** Foreground service that owns the Python backend. The world socket is
- *  kept alive by a 30s ping loop inside Python, so the process must stay
- *  scheduled while the app is in the background: a foreground service
- *  prevents the cached-app freezer from stopping it, and the partial
- *  wake lock keeps the CPU running with the screen off. */
+/** Hosts the Python backend on localhost:5950. A logged-out app stays
+ *  closable; Python promotes the service to foreground only on session. */
 public class ChatBackendService extends Service {
     private static final String CHANNEL_ID = "wowchat_backend";
     private static final int NOTIFICATION_ID = 1;
     private static boolean sBackendStarted = false;
+    private static ChatBackendService sInstance;
 
     private PowerManager.WakeLock mWakeLock;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        startForegroundNotification();
-        acquireWakeLock();
+        sInstance = this;
+        createNotificationChannel();
         startBackend();
     }
 
-    private void startForegroundNotification() {
+    /** Called from Python (Chaquopy) on session state changes. */
+    public static void setSessionActive(boolean active, String title,
+                                        String text) {
+        ChatBackendService svc = sInstance;
+        if (svc == null) {
+            return;
+        }
+        if (active) {
+            svc.startForegroundNotification(title, text);
+            svc.acquireWakeLock();
+        } else {
+            svc.releaseWakeLock();
+            svc.stopForeground(Service.STOP_FOREGROUND_REMOVE);
+        }
+    }
+
+    private void createNotificationChannel() {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -43,7 +57,9 @@ public class ChatBackendService extends Service {
             channel.setDescription("Keeps the chat session connected");
             nm.createNotificationChannel(channel);
         }
+    }
 
+    private void startForegroundNotification(String title, String text) {
         Intent open = new Intent(this, MainActivity.class);
         open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent contentIntent = PendingIntent.getActivity(
@@ -54,8 +70,9 @@ public class ChatBackendService extends Service {
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
         Notification notification = builder
-                .setContentTitle("WoW Chat Client")
-                .setContentText("Keeping your chat connection alive")
+                .setContentTitle(title != null && !title.isEmpty()
+                        ? title : "WoW Chat Client")
+                .setContentText(text != null ? text : "Keeping your chat connection alive")
                 .setSmallIcon(R.drawable.wow_w)
                 .setContentIntent(contentIntent)
                 .setOngoing(true)
@@ -70,11 +87,20 @@ public class ChatBackendService extends Service {
     }
 
     private void acquireWakeLock() {
+        if (mWakeLock != null && mWakeLock.isHeld()) {
+            return;
+        }
         PowerManager pm = getSystemService(PowerManager.class);
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 "wowchat:backend");
         mWakeLock.setReferenceCounted(false);
         mWakeLock.acquire();
+    }
+
+    private void releaseWakeLock() {
+        if (mWakeLock != null && mWakeLock.isHeld()) {
+            mWakeLock.release();
+        }
     }
 
     /** Chaquopy's interpreter and the Flask app are process-wide; only
@@ -91,16 +117,17 @@ public class ChatBackendService extends Service {
         }).start();
     }
 
+    /** Not START_STICKY: after the user clears the app it must stay gone. */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
-        if (mWakeLock != null && mWakeLock.isHeld()) {
-            mWakeLock.release();
-        }
+        sInstance = null;
+        releaseWakeLock();
+        stopForeground(Service.STOP_FOREGROUND_REMOVE);
         super.onDestroy();
     }
 

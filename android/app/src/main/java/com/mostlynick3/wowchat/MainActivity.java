@@ -18,10 +18,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
-/** Single-activity host: the Python backend runs in ChatBackendService on
- *  localhost:5950 and the same web UI as the desktop client is shown in a
- *  WebView. The service outlives this Activity so backgrounding the app
- *  does not stop the chat connection. */
+/** WebView host for the desktop web UI. A logged-out app stays closable;
+ *  Python preserves the backend in background only during a session. */
 public class MainActivity extends Activity {
     private static final String URL = "http://127.0.0.1:5950/";
     private static final int PORT = 5950;
@@ -43,13 +41,9 @@ public class MainActivity extends Activity {
         waitForServerThenLoad();
     }
 
+    /** Nothing is pinned while logged out. */
     private void startBackendService() {
-        Intent service = new Intent(this, ChatBackendService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(service);
-        } else {
-            startService(service);
-        }
+        startService(new Intent(this, ChatBackendService.class));
     }
 
     /** The foreground notification needs POST_NOTIFICATIONS on 13+, and
