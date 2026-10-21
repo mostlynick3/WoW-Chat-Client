@@ -29,6 +29,13 @@ class Opcode(IntEnum):
     SMSG_CHANNEL_LIST = 0x09B
     CMSG_CHANNEL_PASSWORD = 0x09C
     CMSG_CHANNEL_SET_OWNER = 0x09D
+    # guild/group context access (values from the same Opcodes.h)
+    CMSG_GUILD_ROSTER = 0x089
+    SMSG_GUILD_ROSTER = 0x08A
+    SMSG_GUILD_EVENT = 0x092
+    SMSG_GUILD_COMMAND_RESULT = 0x093
+    SMSG_GROUP_LIST = 0x07D
+    SMSG_GROUP_DESTROYED = 0x07C
     CMSG_PING = 0x1DC
     SMSG_PONG = 0x1DD
     SMSG_NOTIFICATION = 0x1CB
