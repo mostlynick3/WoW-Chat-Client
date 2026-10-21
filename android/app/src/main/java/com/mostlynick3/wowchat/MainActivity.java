@@ -101,6 +101,19 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Chat alerts mute while the feed is on screen. */
+    @Override
+    protected void onPause() {
+        ChatBackendService.setUiVisible(false);
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        ChatBackendService.setUiVisible(true);
+        super.onResume();
+    }
+
     @Override
     protected void onDestroy() {
         if (mWebView != null) {
