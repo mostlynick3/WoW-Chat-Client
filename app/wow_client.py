@@ -672,10 +672,11 @@ class WoWChatManager:
             return out[-limit:]
 
     def logout(self) -> dict:
+        # wait=0: best-effort CMSG_LOGOUT, client teardown never blocks.
         try:
             if self.world and self.state == "online":
                 self._note("Logging out ...", "system")
-                self.world.logout()
+                self.world.logout(wait=0.0)
         finally:
             self.disconnect(silent=True)
             self.status = "logged out"
