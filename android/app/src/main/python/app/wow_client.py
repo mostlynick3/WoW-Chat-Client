@@ -15,6 +15,7 @@ import queue
 import threading
 import time
 
+from .android_service import set_session_active
 from wow.auth_socket import AuthClient, AuthTokenRequired
 from wow.chat_defs import (
     SENDABLE,
@@ -295,6 +296,8 @@ class WoWChatManager:
             self.state = "chars"
             self.status = f"select a character on {target['name']}"
             self._dbg(f"world: ready, {len(chars)} character(s)")
+            # World session exists -> app becomes persistent on Android.
+            set_session_active(True, self.realm_name)
             # Keepalive starts NOW, not on entering the world: the server
             # boots idle char-select connections, which used to look like
             # "Back button logged me out".
@@ -306,6 +309,7 @@ class WoWChatManager:
             self.state = "realms"
             self._dbg(f"world: FAILED: {exc}")
             self._cleanup_world()
+            set_session_active(False)
             return {"ok": False, "error": str(exc)}
 
     def _refresh_char_enum(self, realm_name: str) -> dict:
@@ -362,6 +366,7 @@ class WoWChatManager:
             self.language = default_language_for_race(entry.get("race", 0))
             self.state = "online"
             self.status = f"online as {self.character}"
+            set_session_active(True, self.character, self.realm_name)
             self._start_ping_loop()
             self._start_drain_loop()
             return {"ok": True, "character": self.character,
@@ -400,8 +405,13 @@ class WoWChatManager:
                 if self.world:
                     self.world.ping()
                     self.world.keep_alive()
+                    # Re-assert persistence so a recreated service (or a
+                    # failed demotion) cannot weld the app shut either way.
+                    set_session_active(True, self.character or self.realm_name,
+                                       self.realm_name)
             except Exception:
                 self._note("ping failed; connection may be dead.", "system")
+                set_session_active(False)
                 return
 
     def _drain_loop(self):
@@ -430,6 +440,7 @@ class WoWChatManager:
                         reason = ev.get("detail", "") or ""
                         self.status = ("disconnected by server" + (f" ({reason})" if reason else ""))
                         self.state = "offline"
+                        set_session_active(False)
                         self._note("Disconnected by server."
                                    + (f" ({reason})" if reason else ""),
                                    "system")
@@ -705,6 +716,7 @@ class WoWChatManager:
         self._world_host = ""
         self._world_port = 0
         self._account_upper = ""
+        set_session_active(False)
         if self._session_key:
             self._session_key = b"\x00" * len(self._session_key)
             self._session_key = None
